@@ -1868,7 +1868,8 @@ pub struct Settings {
     pub density: String,             // "compact" | "comfortable" | "spacious"
     pub accent: String,              // hex color (e.g., "#E95678")
     pub panel_position: String,      // "top" | "bottom" | "left" | "right"
-    pub hotkey_panel: String,        // e.g., "Ctrl+Shift+V"
+    pub hotkey_panel: String,         // default "Ctrl+F10" (user-rebindable)
+    pub hotkey_paste_last: String,    // default "Ctrl+F11" — quick-paste most recent clip
     pub hotkey_incognito: String,
     pub history_size: i64,
     pub polling_ms: u64,
@@ -1888,7 +1889,8 @@ impl Default for Settings {
             density: "comfortable".into(),
             accent: "#E95678".into(),
             panel_position: "bottom".into(),
-            hotkey_panel: "Ctrl+Shift+V".into(),
+            hotkey_panel: "Ctrl+F10".into(),
+            hotkey_paste_last: "Ctrl+F11".into(),
             hotkey_incognito: "Ctrl+Shift+I".into(),
             history_size: 500,
             polling_ms: 300,
@@ -2664,7 +2666,7 @@ export interface ClipDto {
 
 export interface Settings {
   theme: string; layout: string; density: string; accent: string; panel_position: string;
-  hotkey_panel: string; hotkey_incognito: string;
+  hotkey_panel: string; hotkey_paste_last: string; hotkey_incognito: string;
   history_size: number; polling_ms: number;
   sound_on_copy: boolean; notifications_on_copy: boolean; link_previews_enabled: boolean;
   auto_sync_outgoing: boolean; auto_sync_incoming: boolean;
@@ -3786,11 +3788,25 @@ pub fn run() {
             let inc = inc.clone();
             move |app, shortcut, event| {
                 if event.state() != tauri_plugin_global_shortcut::ShortcutState::Pressed { return; }
-                if shortcut.matches(Modifiers::CONTROL | Modifiers::SHIFT, Code::KeyV) {
+                if shortcut.matches(Modifiers::CONTROL, Code::F10) {
                     if let Some(w) = app.get_webview_window("panel") {
                         if w.is_visible().unwrap_or(false) { let _ = w.hide(); }
                         else { let _ = w.show(); let _ = w.set_focus(); }
                     }
+                } else if shortcut.matches(Modifiers::CONTROL, Code::F11) {
+                    // Quick-paste most recent clip without opening the panel
+                    let db_clone = db.clone();
+                    tauri::async_runtime::spawn(async move {
+                        let id_opt: Option<i64> = db_clone.lock().unwrap().conn()
+                            .query_row("SELECT id FROM clips ORDER BY created_at DESC LIMIT 1",
+                                [], |r| r.get(0)).ok();
+                        if let Some(id) = id_opt {
+                            let (content, mime): (Vec<u8>, String) = db_clone.lock().unwrap().conn()
+                                .query_row("SELECT content, mime FROM clips WHERE id = ?1",
+                                    rusqlite::params![id], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
+                            let _ = crate::paste::paste_to_active(&content, &mime, false);
+                        }
+                    });
                 } else if shortcut.matches(Modifiers::CONTROL | Modifiers::SHIFT, Code::KeyI) {
                     let on = inc.toggle();
                     tracing::info!("incognito: {}", if on { "ON" } else { "OFF" });
@@ -3805,9 +3821,11 @@ pub fn run() {
         ])
         .setup(move |app| {
             // Register hotkeys
-            let panel_chord = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyV);
+            let panel_chord = Shortcut::new(Some(Modifiers::CONTROL), Code::F10);
+            let paste_chord = Shortcut::new(Some(Modifiers::CONTROL), Code::F11);
             let inc_chord   = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyI);
             app.global_shortcut().register(panel_chord)?;
+            app.global_shortcut().register(paste_chord)?;
             app.global_shortcut().register(inc_chord)?;
 
             // Polling source pipeline

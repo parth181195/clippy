@@ -1,5 +1,8 @@
 use tracing_subscriber::EnvFilter;
 
+pub mod clipboard;
+pub mod db;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tracing_subscriber::fmt()
