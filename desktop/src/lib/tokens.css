@@ -1,0 +1,63 @@
+/* Design tokens from PRD §6.3 / handoff tokens.jsx. Values are locked. */
+
+@font-face { font-family: 'Geist'; src: url('/fonts/Geist-Regular.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Geist'; src: url('/fonts/Geist-Medium.woff2') format('woff2'); font-weight: 500; font-display: swap; }
+@font-face { font-family: 'Geist'; src: url('/fonts/Geist-SemiBold.woff2') format('woff2'); font-weight: 600; font-display: swap; }
+@font-face { font-family: 'Geist'; src: url('/fonts/Geist-Bold.woff2') format('woff2'); font-weight: 700; font-display: swap; }
+@font-face { font-family: 'Geist Mono'; src: url('/fonts/GeistMono-Regular.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Geist Mono'; src: url('/fonts/GeistMono-Medium.woff2') format('woff2'); font-weight: 500; font-display: swap; }
+
+:root {
+  --cm-accent: #E95678;
+  --cm-radius-card: 14px;
+  --cm-radius-panel: 20px;
+  --cm-transition: 150ms cubic-bezier(.2, .9, .3, 1);
+  font-family: 'Geist', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+:root[data-theme='dark'] {
+  --cm-bg: #16161F;
+  --cm-bg-solid: #0E0E15;
+  --cm-surface: #1F1F2A;
+  --cm-surface-raised: #2A2A38;
+  --cm-surface-sunken: #15151C;
+  --cm-border-subtle: #2D2D3A;
+  --cm-border-strong: #3A3A4A;
+  --cm-text: #ECECF1;
+  --cm-text-secondary: #9999A8;
+  --cm-text-tertiary: #5C5C6B;
+  --cm-warn: #A55C5C;
+  --cm-panel-scrim: rgba(22, 22, 31, 0.85);
+
+  --badge-text-bg:  rgba(153,153,168,.10);  --badge-text-fg:  #B0B0BE;
+  --badge-link-bg:  rgba(124,156,255,.13);  --badge-link-fg:  #A6B7EA;
+  --badge-code-bg:  rgba(199,146,234,.14);  --badge-code-fg:  #C9A8E7;
+  --badge-image-bg: rgba(91,192,190,.14);   --badge-image-fg: #8FCFC9;
+  --badge-color-bg: rgba(255,180,120,.14);  --badge-color-fg: #D9B493;
+  --badge-emoji-bg: rgba(230,189,108,.14);  --badge-emoji-fg: #D9BC8A;
+  --badge-file-bg:  rgba(140,150,170,.14);  --badge-file-fg:  #9FA9BC;
+}
+
+:root[data-theme='light'] {
+  --cm-bg: #F5F5FA;
+  --cm-bg-solid: #EFEFF4;
+  --cm-surface: #FFFFFF;
+  --cm-surface-raised: #F0F0F5;
+  --cm-surface-sunken: #ECECF1;
+  --cm-border-subtle: #E5E5EC;
+  --cm-border-strong: #D5D5DE;
+  --cm-text: #1A1A24;
+  --cm-text-secondary: #5C5C6B;
+  --cm-text-tertiary: #9999A8;
+  --cm-warn: #B86A6A;
+  --cm-panel-scrim: rgba(245, 245, 250, 0.88);
+
+  --badge-text-bg:  #ECECF1;  --badge-text-fg:  #5C5C6B;
+  --badge-link-bg:  #E8EEFB;  --badge-link-fg:  #3F5DAB;
+  --badge-code-bg:  #F0E6F8;  --badge-code-fg:  #7A4FA6;
+  --badge-image-bg: #DDF2F1;  --badge-image-fg: #3A8B86;
+  --badge-color-bg: #F7ECE0;  --badge-color-fg: #8C6238;
+  --badge-emoji-bg: #F6ECD8;  --badge-emoji-fg: #8C6F35;
+  --badge-file-bg:  #E5E8ED;  --badge-file-fg:  #5A6478;
+}

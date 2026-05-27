@@ -1,7 +1,11 @@
+use std::sync::{Arc, Mutex};
+use tauri::{Emitter, Manager, WindowEvent};
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 use tracing_subscriber::EnvFilter;
 
 pub mod actions;
 pub mod clipboard;
+pub mod commands;
 pub mod db;
 pub mod dbus_app;
 pub mod excluded_apps;
@@ -21,8 +25,134 @@ pub fn run() {
         .with_target(false)
         .init();
     tracing::info!("clippy starting");
+
+    let db_path = dirs::data_local_dir().unwrap().join("clippy/clippy.db");
+    let db = Arc::new(Mutex::new(db::Db::open(&db_path).expect("open db")));
+    let settings = settings::Settings::load(&db.lock().unwrap()).unwrap_or_default();
+    let history_size = settings.history_size;
+    let polling_ms = settings.polling_ms;
+
+    let inc = Arc::new(incognito::Incognito::new(settings.incognito_auto_disable_secs));
+    let inc_active = inc.active();
+
+    let sound = Arc::new(sound::SoundPlayer::new(settings.sound_on_copy));
+    let notif = Arc::new(notifications::Notifier::new(settings.notifications_on_copy));
+
+    let app_state = commands::AppState { db: db.clone() };
+
+    let inc_for_handler = inc.clone();
+    let db_for_paste = db.clone();
     tauri::Builder::default()
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(move |app, shortcut: &Shortcut, event| {
+                    if event.state() != ShortcutState::Pressed {
+                        return;
+                    }
+                    if shortcut.matches(Modifiers::CONTROL, Code::F10) {
+                        if let Some(w) = app.get_webview_window("panel") {
+                            if w.is_visible().unwrap_or(false) {
+                                let _ = w.hide();
+                            } else {
+                                let _ = w.show();
+                                let _ = w.set_focus();
+                            }
+                        }
+                    } else if shortcut.matches(Modifiers::CONTROL, Code::F11) {
+                        let db_clone = db_for_paste.clone();
+                        tauri::async_runtime::spawn(async move {
+                            let id_opt: Option<i64> = db_clone
+                                .lock()
+                                .unwrap()
+                                .conn()
+                                .query_row(
+                                    "SELECT id FROM clips ORDER BY created_at DESC LIMIT 1",
+                                    [],
+                                    |r| r.get(0),
+                                )
+                                .ok();
+                            if let Some(id) = id_opt {
+                                tracing::info!("Ctrl+F11: paste-last clip id={id} (paste wiring lands when paste.rs is added)");
+                            }
+                        });
+                    } else if shortcut.matches(Modifiers::CONTROL | Modifiers::SHIFT, Code::KeyI) {
+                        let on = inc_for_handler.toggle();
+                        tracing::info!("incognito: {}", if on { "ON" } else { "OFF" });
+                    }
+                })
+                .build(),
+        )
+        .manage(app_state)
+        .invoke_handler(tauri::generate_handler![
+            commands::list_clips,
+            commands::get_clip_content,
+            commands::get_thumbnail,
+            commands::toggle_favorite,
+            commands::toggle_pin,
+            commands::delete_clip,
+            commands::save_edited_clip,
+            commands::load_settings,
+            commands::save_settings,
+        ])
+        .setup(move |app| {
+            // Register hotkeys
+            let panel_chord = Shortcut::new(Some(Modifiers::CONTROL), Code::F10);
+            let paste_chord = Shortcut::new(Some(Modifiers::CONTROL), Code::F11);
+            let inc_chord = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyI);
+            app.global_shortcut().register(panel_chord)?;
+            app.global_shortcut().register(paste_chord)?;
+            app.global_shortcut().register(inc_chord)?;
+
+            // Spawn clipboard polling pipeline
+            let db2 = db.clone();
+            let sound2 = sound.clone();
+            let notif2 = notif.clone();
+            let app_handle = app.handle().clone();
+            let inc_active2 = inc_active.clone();
+            tauri::async_runtime::spawn(async move {
+                let (_src, rx) = clipboard::source_polling::PollingSource::start(
+                    polling_ms,
+                    inc_active2.clone(),
+                );
+                let excluded = excluded_apps::load_exclusions(&db2.lock().unwrap());
+                let db_for_callback = db2.clone();
+                let app_handle2 = app_handle.clone();
+                let sound3 = sound2.clone();
+                let notif3 = notif2.clone();
+                let on_new = Box::new(move |id: i64, ct: clipboard::ContentType| {
+                    sound3.play_copy();
+                    let preview = db_for_callback
+                        .lock()
+                        .unwrap()
+                        .conn()
+                        .query_row(
+                            "SELECT preview FROM clips WHERE id = ?1",
+                            rusqlite::params![id],
+                            |r| r.get::<_, String>(0),
+                        )
+                        .unwrap_or_default();
+                    notif3.notify_capture(ct, &preview);
+                    let _ = app_handle2.emit("clip-new", id);
+                });
+                let pipeline = clipboard::pipeline::Pipeline::new(
+                    db2.clone(),
+                    excluded,
+                    history_size,
+                    on_new,
+                );
+                pipeline.run(rx, excluded_apps::current_focused_app).await;
+            });
+
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let WindowEvent::Focused(false) = event {
+                // Auto-hide on blur once Ctrl+F10 wiring is the primary toggle.
+                // For dev convenience, keep visible while we iterate.
+                let _ = window;
+                let _ = event;
+            }
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
