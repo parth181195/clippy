@@ -16,12 +16,12 @@
         "title": "Clippy",
         "width": 1280,
         "height": 340,
-        "decorations": true,
-        "transparent": false,
+        "decorations": false,
+        "transparent": true,
         "alwaysOnTop": false,
         "skipTaskbar": false,
         "visible": true,
-        "resizable": true,
+        "resizable": false,
         "focus": true
       }
     ],

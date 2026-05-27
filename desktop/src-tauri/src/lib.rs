@@ -50,13 +50,25 @@ pub fn run() {
                     if event.state() != ShortcutState::Pressed {
                         return;
                     }
-                    if shortcut.matches(Modifiers::CONTROL, Code::F10) {
+                    if shortcut.matches(Modifiers::CONTROL | Modifiers::SHIFT, Code::F11) {
                         if let Some(w) = app.get_webview_window("panel") {
-                            if w.is_visible().unwrap_or(false) {
+                            let visible = w.is_visible().unwrap_or(false);
+                            let focused = w.is_focused().unwrap_or(false);
+                            if visible && focused {
                                 let _ = w.hide();
                             } else {
+                                // Hide-then-show-then-focus is the most reliable on Mutter:
+                                // a fresh map_request gets the compositor to give focus.
+                                let _ = w.hide();
+                                std::thread::sleep(std::time::Duration::from_millis(20));
                                 let _ = w.show();
+                                let _ = w.set_always_on_top(true);
                                 let _ = w.set_focus();
+                                let w2 = w.clone();
+                                std::thread::spawn(move || {
+                                    std::thread::sleep(std::time::Duration::from_millis(150));
+                                    let _ = w2.set_always_on_top(false);
+                                });
                             }
                         }
                     } else if shortcut.matches(Modifiers::CONTROL, Code::F11) {
@@ -109,12 +121,26 @@ pub fn run() {
         ])
         .setup(move |app| {
             // Register hotkeys
-            let panel_chord = Shortcut::new(Some(Modifiers::CONTROL), Code::F10);
+            let panel_chord = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::F11);
             let paste_chord = Shortcut::new(Some(Modifiers::CONTROL), Code::F11);
             let inc_chord = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyI);
             app.global_shortcut().register(panel_chord)?;
             app.global_shortcut().register(paste_chord)?;
             app.global_shortcut().register(inc_chord)?;
+
+            // Bottom-align the panel on the primary monitor.
+            if let Some(w) = app.get_webview_window("panel") {
+                if let Ok(Some(monitor)) = w.current_monitor() {
+                    let scale = monitor.scale_factor();
+                    let monitor_size = monitor.size();
+                    let monitor_pos = monitor.position();
+                    let window_size = w.outer_size().unwrap_or(tauri::PhysicalSize { width: 1280, height: 340 });
+                    let margin: i32 = (16.0 * scale) as i32;
+                    let x = monitor_pos.x + ((monitor_size.width as i32 - window_size.width as i32) / 2);
+                    let y = monitor_pos.y + (monitor_size.height as i32 - window_size.height as i32 - margin);
+                    let _ = w.set_position(tauri::PhysicalPosition { x, y });
+                }
+            }
 
             // Spawn clipboard polling pipeline
             let db2 = db.clone();

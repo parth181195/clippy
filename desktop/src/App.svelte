@@ -22,13 +22,24 @@
   onMount(async () => {
     await settingsStore.load();
     await clipsStore.refresh();
+    // Auto-select the first card so Enter pastes the most recent clip without
+    // requiring an arrow-key press first.
+    if (clipsStore.clips.length > 0 && !selectionStore.hash) {
+      selectionStore.setByHash(clipsStore.clips[0].hash);
+    }
   });
 
   $effect(() => {
     void filterStore.search;
     void filterStore.type;
     void filterStore.favoritesOnly;
-    clipsStore.refresh(filterStore.search, filterStore.type ?? undefined, filterStore.favoritesOnly);
+    clipsStore.refresh(filterStore.search, filterStore.type ?? undefined, filterStore.favoritesOnly).then(() => {
+      // Keep a clip selected after each refresh so keyboard nav always has a starting point.
+      const hashes = new Set(clipsStore.clips.map((c) => c.hash));
+      if (!selectionStore.hash || !hashes.has(selectionStore.hash)) {
+        selectionStore.setByHash(clipsStore.clips[0]?.hash ?? null);
+      }
+    });
   });
 
   function selectedIndex(): number {
@@ -52,6 +63,11 @@
       return;
     }
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      try { await getCurrentWindow().hide(); } catch {}
+      return;
+    }
     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
       e.preventDefault();
       moveSelection(+1);
@@ -90,13 +106,16 @@
   }
 
   async function pasteSelected(shift: boolean) {
-    const c = clipsStore.clips[selectedIndex()];
-    if (!c) return;
-    // Hide the panel so the previously-focused app receives the synthesised Ctrl+V.
-    try {
-      await getCurrentWindow().hide();
-    } catch {}
-    await new Promise((r) => setTimeout(r, 50));
+    // Fall back to the first (most-recent) clip if nothing is selected.
+    const idx = selectedIndex();
+    const c = idx >= 0 ? clipsStore.clips[idx] : clipsStore.clips[0];
+    if (!c) {
+      console.warn('paste: no clip to paste');
+      return;
+    }
+    const w = getCurrentWindow();
+    try { await w.hide(); } catch (e) { console.error('hide failed', e); }
+    await new Promise((r) => setTimeout(r, 80));
     try {
       await api.pasteById(c.id, shift);
     } catch (e) {
@@ -129,7 +148,7 @@
 <svelte:window on:keydown={onKeydown} />
 
 <div class="panel">
-  <header>
+  <header data-tauri-drag-region>
     <SearchBar bind:value={filterStore.search} bind:focused={searchFocused} bind:this={searchBarRef} />
     <div class="chips">
       <FilterChip
@@ -199,7 +218,7 @@
     <span class="dot">·</span>
     <span class="conn">No device paired</span>
     <span class="spacer"></span>
-    <span class="hints">↵ paste · ⌫ delete · type to search · Ctrl+F10 toggle</span>
+    <span class="hints">↵ paste · ⌫ delete · type to search · Ctrl+Shift+F11 open · Ctrl+F11 paste-last</span>
   </footer>
 </div>
 

@@ -30,7 +30,7 @@ impl Default for Settings {
             density: "comfortable".into(),
             accent: "#E95678".into(),
             panel_position: "bottom".into(),
-            hotkey_panel: "Ctrl+F10".into(),
+            hotkey_panel: "Ctrl+Shift+F11".into(),
             hotkey_paste_last: "Ctrl+F11".into(),
             hotkey_incognito: "Ctrl+Shift+I".into(),
             history_size: 500,
@@ -128,9 +128,9 @@ mod tests {
         assert_eq!(loaded.hotkey_panel, "Ctrl+F10");
     }
     #[test]
-    fn defaults_use_ctrl_f10_and_f11() {
+    fn defaults_use_ctrl_shift_f11_and_ctrl_f11() {
         let s = Settings::default();
-        assert_eq!(s.hotkey_panel, "Ctrl+F10");
+        assert_eq!(s.hotkey_panel, "Ctrl+Shift+F11");
         assert_eq!(s.hotkey_paste_last, "Ctrl+F11");
     }
 }
