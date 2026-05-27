@@ -1,0 +1,7 @@
+html, body, #app { height: 100%; margin: 0; padding: 0; background: transparent; }
+* { box-sizing: border-box; }
+body {
+  font-family: system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: #ECECF1;
+}
