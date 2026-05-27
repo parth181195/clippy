@@ -12,8 +12,8 @@
 Clippy is a personal-use clipboard manager that:
 
 1. Captures clipboard history on the desktop with a beautiful, Paste-style horizontal card UI.
-2. Syncs clipboard contents in real-time to a paired Android phone over the local network.
-3. Allows sharing files up to 100 MB from desktop to phone (and phone to desktop) without going through cloud services.
+2. Syncs **text-shaped clipboard items** (text, links, code, color, emoji) automatically to a paired Android phone over the local network. Auto-sync can be disabled per direction.
+3. **For files and images**, the user explicitly chooses what to send via right-click → "Send to phone". Bidirectional, up to 100 MB, no cloud.
 
 This is a **personal project**. No accounts, no cloud servers, no billing, no multi-tenant support. Devices pair once via QR code and talk peer-to-peer over LAN.
 
@@ -35,11 +35,11 @@ Clippy combines Pano/Copyous's UI quality with KDE Connect's sync capabilities, 
 
 - Real-time-feeling clipboard capture on Ubuntu GNOME Wayland (GNOME-extension primary, polling fallback)
 - Visually rich card-based clipboard history with content-type awareness
-- Global hotkey to summon the clipboard panel
-- Search, favorites, tags, app exclusion list, incognito mode, customizable per-type actions
-- One-time pairing between desktop and Android via QR code
-- Bidirectional clipboard + tag sync when both devices are on the same LAN
-- File transfer up to 100 MB, initiated from either side
+- Global hotkey to summon the clipboard panel (default `Ctrl+Shift+V`; user-rebindable)
+- Search, **pin (always-on-top)**, **favorite (retain-across-pruning)**, app exclusion list, incognito mode, customizable per-type actions
+- One-time pairing between desktop and Android via QR code (with paste-a-code fallback)
+- **Automatic LAN sync of text-shaped clips** (text/link/code/color/emoji) when both devices are on the same network; can be toggled off per direction
+- **Explicit file/image transfer** up to 100 MB, initiated by right-click → "Send to phone" or by Android share-sheet
 - Encrypted communication between paired devices
 
 ### Non-goals (out of scope)
@@ -68,6 +68,7 @@ Clippy combines Pano/Copyous's UI quality with KDE Connect's sync capabilities, 
 | Desktop storage | **SQLite** via `rusqlite` (bundled feature) | No external server, file-based, fast |
 | Desktop hotkey | `tauri-plugin-global-shortcut` | Built-in support |
 | Desktop sound | `rodio` crate (cross-distro), `gsound` where available | Plays the bundled copy sound |
+| Desktop typography | **Geist** + **Geist Mono** (bundled WOFF2 in Tauri resources) | Locked design system; matches handoff |
 | Encryption | `libsodium` via `sodiumoxide` crate | Battle-tested, simple API |
 | LAN discovery | mDNS via `mdns-sd` crate | Zero-config service discovery |
 | Sync transport | WebSocket via `tokio-tungstenite` | Bidirectional, lightweight |
@@ -100,7 +101,6 @@ Clippy combines Pano/Copyous's UI quality with KDE Connect's sync capabilities, 
        │  exemption        │    │  SyncPlugin (interface)      │
        │                   │    │   → ClipboardPlugin          │
        └───────────────────┘    │   → FileTransferPlugin       │
-                                │   → TagsPlugin               │
                                 └──────────────────────────────┘
 ```
 
@@ -144,8 +144,7 @@ clippy/
 │   │       │   └── plugins/
 │   │       │       ├── mod.rs            # SyncPlugin trait
 │   │       │       ├── clipboard.rs
-│   │       │       ├── file_transfer.rs
-│   │       │       └── tags.rs
+│   │       │       └── file_transfer.rs
 │   │       ├── files.rs                  # HTTP file endpoint
 │   │       ├── pairing.rs
 │   │       ├── dbus_app.rs               # io.clippy.App
@@ -160,11 +159,15 @@ clippy/
 │   │   │   ├── components/
 │   │   │   │   ├── CardGrid.svelte
 │   │   │   │   ├── ClipCard.svelte
+│   │   │   │   ├── HoverActions.svelte    # quick-action overlay on hover (fav/pin/delete/send)
+│   │   │   │   ├── TransferCard.svelte    # in-progress transfer w/ circular progress
+│   │   │   │   ├── FilterChip.svelte
 │   │   │   │   ├── SearchBar.svelte
-│   │   │   │   ├── TagBar.svelte
-│   │   │   │   ├── SettingsPanel.svelte
+│   │   │   │   ├── ConnectionIndicator.svelte
+│   │   │   │   ├── SettingsView.svelte     # rendered as a body-override of the Panel
 │   │   │   │   ├── ActionsEditor.svelte
-│   │   │   │   └── PairingDialog.svelte
+│   │   │   │   ├── EmptyState.svelte
+│   │   │   │   └── PairingView.svelte      # also a body-override; QR + paste-code fallback
 │   │   │   ├── stores/
 │   │   │   └── api.ts
 │   │   └── main.ts
@@ -195,8 +198,7 @@ clippy/
 │   │   │   │   └── plugins/
 │   │   │   │       ├── plugin.dart
 │   │   │   │       ├── clipboard.dart
-│   │   │   │       ├── file_transfer.dart
-│   │   │   │       └── tags.dart
+│   │   │   │       └── file_transfer.dart
 │   │   │   ├── discovery_service.dart
 │   │   │   ├── crypto_service.dart
 │   │   │   ├── db_service.dart
@@ -231,10 +233,14 @@ clippy/
 - Skip capture if focused app matches exclusion list
 
 #### F2. History UI
-- Hidden by default; appears on global hotkey (`Ctrl+Shift+V`, configurable)
+- Hidden by default; appears on global hotkey (default `Ctrl+Shift+V`; user-rebindable to anything incl. Super-based chords)
 - Window position: configurable (top/bottom/left/right), default bottom — matching Pano
-- Layout: horizontal-scrolling row of cards, each ~200×280px
-- Card shows: preview, source app icon, type badge, tags (colored dots), timestamp on hover
+- **Layout** is user-selectable in settings (see F13):
+  - **Cards** (default) — horizontal-scrolling row of cards, ~200×240px (comfortable); 168×210 (compact); 232×244 (spacious)
+  - **Spotlight** — selected clip rendered large on the left, scrollable thumbnail strip on the right; the large pane doubles as the view/edit surface (see F14)
+  - **Sectioned** — vertical, time-grouped list (Pinned / Today / Yesterday / Earlier); three columns at desktop widths
+  - **Mosaic** — cards sized to content type (wide for code/text, narrow for emoji/color)
+- Card shows: preview, source app icon, type badge, **accent top stripe if pinned**, **filled star if favorited**, timestamp on hover
 - Keyboard navigation (Pano + Copyous style):
   - Arrow keys move selection
   - Enter pastes (synthesises `Ctrl+V` to previously-focused app)
@@ -242,11 +248,13 @@ clippy/
   - **Ctrl+Enter** / **Ctrl+Click** on a `link` clip runs the link's default custom action (typically: open in browser)
   - Esc closes
   - **Tab / Shift+Tab** cycles type filter; **Backspace** on empty search clears the filter
-  - **Delete** removes the focused item; **Shift+Delete** force-deletes a pinned/tagged item
-  - **Ctrl+S** toggles favorite
+  - **Delete** removes the focused item; **Shift+Delete** force-deletes a pinned/favorited item
+  - **Ctrl+S** toggles favorite; **P** toggles pin
+  - **E** opens the edit pane for the focused text-shaped clip (F14)
   - **Alt** toggles favorites-only view
   - Typing anywhere focuses the search bar
-- Mouse: click to paste, right-click for context menu (pin, tag, delete, copy raw, **Paste as…** submenu for multi-rep clips, custom actions for the type)
+- Hover overlay (quick actions, top-right of card): Favorite, Pin, Edit (text-shaped clips), Delete; for **file/image clips only**, also a "Send to phone" action (see F16)
+- Mouse: click to paste, right-click for context menu (Pin, Favorite, Edit, Delete, Copy raw, **Paste as…** submenu for multi-rep clips, **Send to phone** for file/image clips, custom actions for the type)
 
 #### F3. Search
 - Search bar at top of panel
@@ -254,9 +262,10 @@ clippy/
 - SQLite FTS5 for text content
 - Image/file/color search by metadata
 
-#### F4. Favorites + Tags
-- Star icon pins items; pinned never auto-deleted
-- **Tags**: up to 9 colored, named groups. Items can have multiple tags. Tag bar above the card grid filters by tag. Tags persist and sync to phone.
+#### F4. Pin and Favorite (two separate axes)
+- **Pin** — position discipline. Pinned clips always render first, with an accent-colored top stripe. Toggled with `P` or right-click → Pin. Pinned clips are protected from auto-pruning.
+- **Favorite** — retention discipline. Favorited clips show a filled star and are also protected from auto-pruning. Toggled with `Ctrl+S` or right-click → Favorite. `Alt` toggles a favorites-only view.
+- A clip can be both pinned AND favorited, neither, or either. They're orthogonal.
 
 #### F5. Incognito mode
 - Toggle hotkey: `Ctrl+Shift+I` (configurable)
@@ -292,22 +301,52 @@ clippy/
 - Implementation: `rodio` for cross-distro; tries `gsound` if available (matches Pano/Copyous behaviour on GNOME)
 
 #### F11. Settings
-- Hotkey customization (panel, incognito)
+- **Hotkey customization** — every chord in F2 is rebindable (panel toggle, incognito, in-panel actions). Defaults are Ctrl-based; user can rebind to Super-based or anything else.
+- **Layout** — Cards (default) / Spotlight / Sectioned / Mosaic
+- **Density** — Compact / Comfortable (default) / Spacious
+- **Accent colour** — one of five swatches (Coral default, Indigo, Teal, Violet, Bone) or custom hex
 - Panel position (top/bottom/left/right)
 - Theme: light/dark/auto
 - History size limit (50–10,000)
 - Polling interval (100–1000ms, advanced; only relevant when extension absent)
 - Exclusion list management
-- Tags management (add/rename/recolor/delete)
 - Custom actions editor
 - Sound on copy: on/off
 - Notifications: on/off
 - Link previews: on/off
+- Auto-sync text-shaped clips to phone: on/off (default ON, per direction)
 - Clear history (with confirmation)
 
 #### F12. Public D-Bus interfaces
 - **`org.gnome.Shell.Extensions.Clippy`** (extension, GJS): `Toggle`, `Show`, `Hide`, `ClearHistory(bool all)`; signals `ClipboardChanged(mime, b64)`, `FocusedWindowChanged(app_id, title)`
-- **`io.clippy.App`** (Tauri, Rust via `zbus`): `TogglePanel`, `OpenSettings`, `SearchHistory(query)`, `PasteByHash(hash)`, `RunActionByHash(hash, action_id)`
+- **`io.clippy.App`** (Tauri, Rust via `zbus`): `TogglePanel`, `OpenSettings`, `SearchHistory(query)`, `PasteByHash(hash)`, `RunActionByHash(hash, action_id)`, `OpenEditor(hash)`
+
+#### F13. Layout picker
+- All four layouts (Cards / Spotlight / Sectioned / Mosaic) live behind the same data + keybindings; only the render differs.
+- Layout is per-user, persisted; chosen in Settings → General.
+- Each layout supports both themes, all three densities, incognito, AND every panel state: **default / search / filter / empty**. Plus layout-specific states:
+  - **Cards** — default horizontal scroller with edge-fade gradient on the right.
+  - **Spotlight** — selected clip rendered large in left pane; supports a `link`-focused state (favicon + URL + title + og:image preview surface, integrated with F9 link previews) and the edit-mode state (F14) renders in this same focus pane.
+  - **Sectioned** — vertical, time-grouped 3-column list. Search collapses to a single column with an accent-coloured `RESULTS · N MATCHES` header. Filter mode keeps the time-group structure but only within the filtered type.
+  - **Mosaic** — cards sized to content. Filter mode promotes the first card wider (320px) and selected. Transfer-in-progress renders the `TransferCard` at the front of the row.
+- Switching layout preserves search query, type filter, selection by `content_hash`, and scroll position (within layout norms).
+
+#### F14. View + Edit pane (text-shaped clips only)
+- Triggered by `E` keystroke on a focused clip, hover-overlay Edit button, or right-click → Edit.
+- Eligible types: `text`, `link` (the URL string), `code`, `color` (the hex/rgb string), `emoji`. **Not** `image` or `file`.
+- In the **Spotlight** layout, the edit pane renders inline in the left "focus" pane. In **Cards / Sectioned / Mosaic**, the edit pane slides in as a body-override modal over the panel (same overlay mechanism used by Settings / Pairing).
+- The pane shows: type badge, source app + timestamp at top; an editable textarea (monospace for `code`, hex-validated for `color`); cancel + save buttons; "save and paste" primary action bound to `Ctrl+Enter`.
+- **Save semantics** (non-destructive): saving creates a **new** clip with `source_app = 'Clippy (edited)'`, fresh `content_hash`, `created_at = now`. The original clip stays in history untouched. The new clip's `is_pinned`/`is_favorite` start at 0.
+- **Paste from the edit pane** is the primary action: saves the new clip AND synthesises paste to the previously-focused app (or Ctrl+Shift+V in Shift mode for terminals).
+- `Esc` cancels without saving.
+- The edit pane is editor-only — no rich-text formatting, no syntax-highlighting input. Code edits render in mono; the badge keeps the `lang` label.
+
+#### F15. Device naming
+- During pairing, both desktop and phone prompt for a device name (defaults: hostname for desktop, `Build.MODEL` for phone). Names are stored in `paired_devices.name` and shown in the connection indicator, notifications, and the "Send to phone" affordances. User can rename later from Settings → Devices.
+
+#### F16. Per-clip "Send to phone" (file/image only)
+- Text-shaped clips sync automatically (F2 hover overlay does not show a Send button for them); the auto-sync toggle in F11 controls this.
+- File and image clips do **not** auto-sync. The hover overlay on these cards shows a "Send to phone" button; right-click → "Send to phone" is the equivalent menu path. Selecting it generates a one-shot file token, sends a `FILE_OFFER`, and shows the transfer card with progress.
 
 ### 6.2 Data model — SQLite schema
 
@@ -323,13 +362,16 @@ CREATE TABLE clips (
     content_hash TEXT NOT NULL,           -- sha256 of primary content
     preview      TEXT,                    -- short text preview for display/search
     source_app   TEXT,                    -- "firefox", "code", etc.
-    is_favorite  INTEGER NOT NULL DEFAULT 0,
-    created_at   INTEGER NOT NULL,        -- unix epoch ms
+    is_favorite  INTEGER NOT NULL DEFAULT 0,  -- retention discipline (star icon)
+    is_pinned    INTEGER NOT NULL DEFAULT 0,  -- position discipline (always-first, top stripe)
+    created_at   INTEGER NOT NULL,            -- unix epoch ms
     UNIQUE (content_hash)
 );
 
 CREATE INDEX idx_clips_created ON clips(created_at DESC);
-CREATE INDEX idx_clips_favorite ON clips(is_favorite DESC, created_at DESC);
+-- Order for the panel: pinned first, then favorite, then recency
+CREATE INDEX idx_clips_panel_order
+    ON clips(is_pinned DESC, is_favorite DESC, created_at DESC);
 
 CREATE TABLE clip_representations (
     clip_id INTEGER NOT NULL REFERENCES clips(id) ON DELETE CASCADE,
@@ -341,18 +383,6 @@ CREATE TABLE clip_representations (
 CREATE TABLE clip_thumbnails (
     clip_id   INTEGER PRIMARY KEY REFERENCES clips(id) ON DELETE CASCADE,
     png_bytes BLOB NOT NULL
-);
-
-CREATE TABLE tags (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    name       TEXT NOT NULL UNIQUE,
-    color_idx  INTEGER NOT NULL CHECK (color_idx BETWEEN 0 AND 8),
-    sort_order INTEGER NOT NULL
-);
-CREATE TABLE clip_tags (
-    clip_id INTEGER NOT NULL REFERENCES clips(id) ON DELETE CASCADE,
-    tag_id  INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
-    PRIMARY KEY (clip_id, tag_id)
 );
 
 CREATE TABLE clip_actions (
@@ -399,17 +429,79 @@ CREATE TABLE paired_devices (
 );
 ```
 
-### 6.3 UI requirements (frontend)
+### 6.3 UI requirements — design tokens (from handoff)
 
-- Background: blurred backdrop using `backdrop-filter: blur(20px)` + semi-transparent (`rgba(20,20,28,0.85)` dark; `rgba(245,245,250,0.85)` light)
-- Card border-radius: 16px
-- Card hover: subtle lift (`transform: translateY(-4px)`) with shadow
-- Selected card: 2px accent border (use system accent via Tauri; fall back to a Clippy purple if unavailable on Wayland)
-- Horizontal scroll: `scroll-snap-type: x mandatory`
-- Animations: 200ms cubic-bezier(0.2, 0.9, 0.3, 1) for everything
-- Open animation: slide up from bottom over 250ms
-- Settings via gear icon top-right; no hamburger
-- Tag bar: small horizontal strip above the card grid showing colored tag chips; clicking filters; long-press to manage
+Locked design system from `clippy-handoff/` (Claude Design export). The Tauri frontend reproduces these pixel-for-pixel; nothing here is up for re-litigation during implementation.
+
+**Typography**
+- Family: `Geist` (sans) + `Geist Mono` (mono). Bundled as WOFF2 in Tauri resources; no Google Fonts fetch at runtime.
+- Sizes: 10 (mono caption), 11 (body small), 11.5 (mono inline), 12 (label), 13 (body), 14 (heading 4), 15 (heading 3), 22 (heading 2).
+- Use Geist Mono for: timestamps, URLs, hex/rgb, file sizes, kbd labels, anything tabular.
+
+**Colours — Dark**
+```
+bg            #16161F   (with 0xD9 alpha when used as panel scrim)
+bgSolid       #0E0E15
+surface       #1F1F2A
+surfaceRaised #2A2A38
+surfaceSunken #15151C
+borderSubtle  #2D2D3A
+borderStrong  #3A3A4A
+text          #ECECF1
+textSecondary #9999A8
+textTertiary  #5C5C6B
+warn          #A55C5C   (incognito border + indicator)
+```
+
+**Colours — Light**
+```
+bg            #F5F5FA   (with 0xE0 alpha as panel scrim)
+bgSolid       #EFEFF4
+surface       #FFFFFF
+surfaceRaised #F0F0F5
+surfaceSunken #ECECF1
+borderSubtle  #E5E5EC
+borderStrong  #D5D5DE
+text          #1A1A24
+textSecondary #5C5C6B
+textTertiary  #9999A8
+warn          #B86A6A
+```
+
+**Accent swatches** (default Coral; user-selectable in Settings)
+- Coral `#E95678` (default) · Indigo `#7C7CFF` · Teal `#5BC0BE` · Violet `#C792EA` · Bone `#ECECF1` · custom hex
+
+**Type-badge palette** — content-type chips with per-type bg/fg pairs (dark + light variants). Exact values: see `clippy-handoff/clippy/project/src/tokens.jsx` `CM_TOKENS.badges`. The `color` badge is special — its bg uses the clip's hex, fg is white.
+
+**Geometry**
+- Panel: 1280×340 typical, `border-radius: 20px`, `border: 1px solid borderSubtle` (or 2px `warn` in incognito).
+- Backdrop: `backdrop-filter: blur(24px) saturate(140%)`.
+- Header: 48px high, 16px horizontal padding, search bar + filter chips + (incognito badge?) + settings gear.
+- Footer: 28px high, 20px horizontal padding, "N items · connection · ↵ paste · ⌫ delete · ⌘F search".
+- Card border-radius: 14px (corner radii were 16px in the original PRD; design uses 14px — design wins).
+- Card dimensions (W × H): compact 168×210, comfortable 200×240 (default), spacious 232×244.
+- Card padding: compact 10, comfortable 12, spacious 16. Gap between cards: 9 (compact) / 12 (comfortable+spacious).
+- Pinned top stripe: 2px tall, accent colour, inset 14px from card sides.
+- Type badge: 3×7 padding, 6px radius, font 10/600 uppercase, 0.4px letter-spacing.
+
+**Motion**
+- Hover lift: `translateY(-2px)` + accent border at `${accent}55` opacity. (Original PRD said -4px; design uses -2px.)
+- Pressed: `scale(0.97)`.
+- Selected: solid accent border (no opacity).
+- Default transition: `150ms cubic-bezier(.2, .9, .3, 1)` for transform/background/border-color. (PRD said 200ms; design uses 150ms.)
+- Panel open: slide up from bottom, 250ms.
+- Spinner: 0.9s linear infinite rotation on connection indicator.
+
+**Chrome**
+- Settings open as a **body-override** of the panel itself, not a separate window. Same for Pairing, Empty states, Incognito mode placeholder.
+- No hamburger menus. Settings gear in panel header, top-right.
+- Edge-fade gradient at the right edge of the horizontal card scroller (60px fade to panel scrim).
+
+**Connection indicator** (footer; four states)
+- `connected` — phone-icon + "paired with {device}" + accent zap icon
+- `connecting` — spinner + "Connecting to {device}…"
+- `disconnected` — wifi-off + "{device} (offline)"
+- `unpaired` — phone-icon + "No device paired" + accent "Pair phone →" link
 
 ### 6.4 Acceptance criteria for Phase 1
 
@@ -417,13 +509,21 @@ CREATE TABLE paired_devices (
 - [ ] Copying an image renders as thumbnail; primary content preserved in original format with mime
 - [ ] HTML+plain text copy from a browser stores both reps; "Paste as…" submenu offers both
 - [ ] Copying a URL gets a `link` badge; rich preview appears within 3 s when previews enabled
-- [ ] Global hotkey opens/closes panel from any focused app
+- [ ] Global hotkey opens/closes panel from any focused app; user can rebind it from settings
 - [ ] Enter pastes via Ctrl+V; Shift+Enter pastes via Ctrl+Shift+V (verify in a terminal)
 - [ ] Tab/Shift+Tab cycle the type filter; Backspace clears it
-- [ ] Delete removes; Shift+Delete force-deletes pinned/tagged items; Ctrl+S toggles favorite; Alt toggles favorites-only
-- [ ] Ctrl+Enter on a `link` clip opens it in the default browser
+- [ ] Delete removes; Shift+Delete force-deletes pinned/favorited items; `Ctrl+S` toggles favorite; `P` toggles pin; Alt toggles favorites-only
+- [ ] `Ctrl+Enter` on a `link` clip opens it in the default browser
+- [ ] Pin draws the accent top stripe AND moves the clip to the front of any layout's ordering; un-pinning restores chronological position; both `is_pinned` and `is_favorite` survive a restart
+- [ ] `E` opens the edit pane for a text/link/code/color/emoji clip; pressing `Ctrl+Enter` in the pane saves a new clip with `source_app = 'Clippy (edited)'` AND pastes it; the original is untouched
+- [ ] Edit pane refuses to open on `image` and `file` clips
+- [ ] Switching layout (Cards → Spotlight → Sectioned → Mosaic) in settings re-renders with the same selection state and search query; no state loss
+- [ ] In Spotlight layout, focusing a clip auto-renders it in the focus pane; pressing `E` upgrades that pane to edit mode in-place
+- [ ] Spotlight + `link` clip focused: the focus pane shows favicon, URL, title, and OG image (when link-previews enabled) or a tasteful placeholder when not
+- [ ] Sectioned + active search: results render as a single column with `RESULTS · N MATCHES` header in accent colour; empty matches shows "— none —"
+- [ ] Mosaic + active file transfer: TransferCard renders at the front of the row, doesn't disrupt the other cards' sizing
+- [ ] Each layout × each state (default / search / filter / empty) renders without overflow/visual regression in both dark and light at 1280×340
 - [ ] Search filters live with <50ms latency at 500 items
-- [ ] Favorites + tags persist across restarts; tags appear as colored dots on cards
 - [ ] Incognito mode prevents capture; auto-disables after 5 min
 - [ ] App in exclusion list (try `keepassxc`) does not get captured (when the GNOME extension is running)
 - [ ] Sound plays on every capture; muting in settings silences it
@@ -433,16 +533,17 @@ CREATE TABLE paired_devices (
 - [ ] App starts in under 1 second on a modest laptop
 - [ ] Settings persist across restarts
 - [ ] `org.gnome.Shell.Extensions.Clippy.Toggle` and `io.clippy.App.TogglePanel` both work via `busctl`
+- [ ] Panel renders with Geist/Geist Mono and the exact tokens from §6.3 in both dark and light modes
 
 ---
 
 ## 7. Phase 2 — Android app + LAN sync (week 2)
 
-**Goal:** Phone shows desktop clipboard in real time. Desktop shows last copies from phone. Tags sync.
+**Goal:** Phone mirrors text-shaped clips from the desktop in real time. Desktop mirrors text-shaped clips from the phone (when the user explicitly sends them via the Send composer or share-sheet). Files and images are NEVER auto-synced — they always require an explicit user action (see Phase 3).
 
 ### 7.1 Pairing flow
 
-1. User opens "Add Device" in desktop settings
+1. User opens "Add Device" in desktop settings; desktop prompts for a **device name** (defaults to hostname; e.g. "Helios").
 2. Desktop generates:
    - 32-byte ed25519 keypair (device identity)
    - 32-byte symmetric key (`secretbox`)
@@ -452,18 +553,21 @@ CREATE TABLE paired_devices (
    {
      "v": 1,
      "device_id": "clippy-desktop-abc123",
+     "name": "Helios",
      "host": "192.168.1.42",
      "port": 43117,
      "psk": "base64(32-byte-symmetric-key)",
      "pubkey": "base64(ed25519-public)"
    }
    ```
-4. Phone opens "Pair with Desktop", scans QR
-5. Phone stores config in `flutter_secure_storage`
-6. Phone connects to WebSocket, sends `HELLO` message signed with its own ed25519 key
-7. Desktop verifies, stores phone's pubkey in `paired_devices`
-8. Pairing complete; both sides show "Paired with [device name]"
-9. Phone prompts user for **battery-optimization exemption** (KDE Connect convention)
+   Below the QR, a "Use pairing code instead" link shows a 6-word BIP39-style code derived from the same payload — for situations where the camera won't focus or the QR is partially occluded.
+4. Phone opens "Pair with Desktop", scans QR (or taps "Enter code instead").
+5. Phone prompts for its own **device name** (defaults to `Build.MODEL`; e.g. "Pixel 7").
+6. Phone stores config in `flutter_secure_storage`.
+7. Phone connects to WebSocket, sends `HELLO` message signed with its own ed25519 key.
+8. Desktop verifies, stores phone's pubkey + name in `paired_devices`.
+9. Pairing complete; both sides show "Paired with [device name]" + accent zap icon.
+10. Phone prompts user for **battery-optimization exemption** (KDE Connect convention).
 
 ### 7.2 Sync protocol
 
@@ -471,36 +575,37 @@ Transport: WebSocket. All payloads JSON, encrypted with `crypto_secretbox` using
 
 Message envelope (before encryption):
 ```json
-{ "type": "...", "id": "uuid-v4", "ts": 1735000000000, "plugin": "clipboard|file_transfer|tags|core", "payload": { ... } }
+{ "type": "...", "id": "uuid-v4", "ts": 1735000000000, "plugin": "clipboard|file_transfer|core", "payload": { ... } }
 ```
 
 | Type | Plugin | Direction | Payload | Purpose |
 |---|---|---|---|---|
-| `HELLO` | core | bidir | `{device_id, name, version}` | Initial handshake |
+| `HELLO` | core | bidir | `{device_id, name, version}` | Initial handshake; carries device name |
 | `ACK` | core | bidir | `{ref_id}` | Confirm receipt |
-| `CLIP_NEW` | clipboard | bidir | `{kind, mime, preview, hash, content_inline?, file_token?, reps?}` | Notify other side of new clip |
+| `CLIP_NEW` | clipboard | bidir | `{kind, mime, preview, hash, content_inline?, reps?}` | Notify other side of a new **text-shaped** clip (auto-sync) |
 | `CLIP_REQUEST` | clipboard | bidir | `{hash}` | Request full content if not inlined |
 | `CLIP_LIST` | clipboard | bidir | `{since_ts, items: [...]}` | Initial sync after reconnect |
-| `TAG_LIST` | tags | bidir | `{tags: [{id, name, color_idx}]}` | Initial tag set |
-| `TAG_UPSERT` | tags | bidir | `{id, name, color_idx, sort_order}` | Tag created/renamed |
-| `TAG_DELETE` | tags | bidir | `{id}` | Tag removed |
-| `CLIP_TAG` | tags | bidir | `{clip_hash, tag_id, op}` | Tag attach/detach (op = add/remove) |
-| `FILE_OFFER` | file_transfer | bidir | `{token, filename, size, mime}` | File is available |
+| `FILE_OFFER` | file_transfer | bidir | `{token, filename, size, mime}` | A file is available (issued only on explicit user send / share-sheet) |
 | `FILE_REQUEST` | file_transfer | bidir | `{token}` | Acknowledge intent to download |
-| `FILE_UPLOAD_REQUEST` | file_transfer | phone→desktop | `{filename, size}` | Phone wants to upload |
+| `FILE_UPLOAD_REQUEST` | file_transfer | phone→desktop | `{filename, size}` | Phone wants to upload (share-sheet) |
+| `FILE_PROGRESS` | file_transfer | bidir | `{token, bytes, total}` | In-progress transfer tick (drives the progress arc) |
 
-**Inline vs request rule:**
-- Text under 4 KB: inline in `CLIP_NEW.content_inline`
+**What gets auto-synced via `CLIP_NEW`:**
+- Content types `text`, `link`, `code`, `color`, `emoji`. Always.
+- Subject to the per-direction "Auto-sync text-shaped clips" setting (F11).
+- `image` and `file` are **never** carried by `CLIP_NEW`; they only travel via `FILE_OFFER` after the user invokes Send.
+
+**Inline vs request rule (text-shaped only):**
+- Single representation under 4 KB: inline in `CLIP_NEW.content_inline`
 - Multi-representations under 8 KB total: inline in `reps`
-- Images: always send as file via `FILE_OFFER`
-- Files: always `FILE_OFFER`
+- Larger text/code clips: send hash only; recipient pulls with `CLIP_REQUEST`
 
 ### 7.3 Pluggable architecture
 
 On both sides:
 
 - **`SyncTransport`** trait/interface: `connect(addr)`, `send(envelope)`, `on_message(handler)`, `close()`. v1 has only `LanWebSocketTransport`; a stub `BluetoothTransport` documents the interface for later.
-- **`SyncPlugin`** trait/interface: `name() -> str`, `handle(envelope)`. v1 ships `ClipboardPlugin`, `FileTransferPlugin`, `TagsPlugin`. The dispatcher routes envelopes by `plugin` field.
+- **`SyncPlugin`** trait/interface: `name() -> str`, `handle(envelope)`. v1 ships `ClipboardPlugin` (auto-sync of text-shaped clips) and `FileTransferPlugin` (explicit file/image sends). The dispatcher routes envelopes by `plugin` field.
 
 ### 7.4 Discovery and reconnection
 
@@ -508,50 +613,58 @@ On both sides:
 - Phone browses mDNS when foregrounded; falls back to last-known IP if no result in 3 s
 - On disconnect, exponential backoff: 1s, 2s, 4s, 8s, max 30s
 - **`ConnectivityManager` listener** on Android triggers immediate reconnect on WiFi/AP change (sub-second), bypassing the backoff
-- On reconnect, phone sends `CLIP_LIST` + `TAG_LIST` with `since_ts` to backfill
+- On reconnect, phone sends `CLIP_LIST` with `since_ts` to backfill missed text-shaped clips. In-flight file transfers from before disconnect are NOT resumed; the user re-initiates.
 
 ### 7.5 Android UI
 
-Four screens:
+Bottom-nav with **three tabs** (matches handoff):
 
-1. **Home / Recent** — vertical list of recent clips, swipe to copy or delete, tap to view detail, long-press to tag
-2. **Tags** — list of tags with colored chips; tap to filter recent
-3. **Send** — quick text composer; share-sheet target for files/text
-4. **Settings** — paired device info, unpair button, theme, notification preferences, battery optimization status
+1. **Recent** — vertical list of synced text-shaped clips. Each row shows: type-preview block + type badge + filled star if favorited, 2-line preview, source-app icon, timestamp. **Swipe right → copy to clipboard**; **swipe left → delete**. Tap opens detail. Long-press toggles favorite. Day headers ("Today", "Yesterday") group the list.
+2. **Send** — top: composer for typing/pasting text to push to the desktop; below: "Recent transfers" list of file transfers (in-progress with progress bar; completed with Resend button). Share-sheet target for files lands here and triggers the upload flow.
+3. **Settings** — Device card (paired device's name, OS, last-sync) with connected dot; sections: Sync (Auto-copy incoming clips to phone clipboard; Notifications), Appearance (Theme).
 
-Notifications:
-- On new desktop clip: silent notification with preview, tap to copy to phone clipboard
-- On file received: regular notification with "Open" action
-- Foreground service notification: low-priority, text reflects connection state ("Connected to parth-laptop" / "Looking for parth-laptop…")
+A **connection chip** sits at the top of Recent: `● synced with Helios · 2s ago` (accent dot when connected; muted when disconnected; "Tap to pair" when unpaired).
+
+**Pairing screen** is a full-screen camera view with a 220×220 viewfinder, accent-coloured border, white corner markers, and "Point your phone at the QR code…" caption. A "Enter code instead" pill at the bottom triggers a manual-entry sheet. On success, the viewfinder fills with accent + checkmark.
+
+**Notifications:**
+- On new desktop clip (text-shaped, auto-sync): silent low-priority notification "From {device_name}" with up to 2 lines of preview; tap copies to phone clipboard.
+- On file received: standard-importance notification "{filename} received · {size} · from {device_name}" with **Open** and **Share** actions.
+- Foreground-service notification (always present): low-priority "Listening for clips from {device_name}" / "Looking for {device_name}…" / "Disconnected" depending on state. Dismissible only via notification-channel settings (KDE Connect convention). Tapping it opens the app.
 
 ### 7.6 Android clipboard limitations
 
 Android 10+ restricts background clipboard reads.
 
-- **Phone → desktop:** user-initiated only — share-sheet "Share to Clippy" or "Send current clipboard" button. No background polling.
-- **Desktop → phone:** no restriction. Phone receives, notifies, user taps to copy.
+- **Phone → desktop (text-shaped):** strictly user-initiated. Either the Send composer (user types/pastes, taps Send) or the "Share to Clippy" share-sheet target. **No background clipboard polling**, ever.
+- **Desktop → phone (text-shaped, auto-sync):** delivered as notifications; user taps to copy into the phone's clipboard. There's an opt-in setting ("Auto-copy to clipboard") to skip the tap.
+- **File transfers (both directions):** never automatic. Phone → desktop via share-sheet; desktop → phone via right-click → "Send to phone" or hover-overlay button on a `file`/`image` card.
 
-The foreground service keeps the WebSocket alive while the app is backgrounded. Notification text mirrors connection state and is dismissible only via the system notification channel settings (KDE Connect convention).
+The foreground service keeps the WebSocket alive while the app is backgrounded. Notification text mirrors connection state (per the connection-state model in §6.3).
 
 ### 7.7 Acceptance criteria for Phase 2
 
-- [ ] QR pairing completes in under 10 seconds end-to-end
+- [ ] QR pairing completes in under 10 seconds end-to-end; "Enter code instead" fallback also succeeds
+- [ ] Device names entered during pairing show up in connection indicator (desktop) and notification text (phone)
 - [ ] Pairing data persists across reboots on both sides
 - [ ] Battery-optimization exemption prompt appears on first launch after pairing
-- [ ] Copying text on desktop appears as notification on phone within 1 second on same LAN
-- [ ] Tapping the notification copies text to phone clipboard
+- [ ] Copying text/link/code/color/emoji on desktop appears as notification on phone within 1 second on same LAN
+- [ ] Tapping the notification copies text to phone clipboard; with "Auto-copy" enabled, the tap is not required
 - [ ] Using share-sheet "Share to Clippy" sends text/URL to desktop, where it appears in history
-- [ ] Creating a tag on desktop appears on phone within 1 s; tagging a clip on either side reflects on the other
-- [ ] If phone leaves WiFi and returns, sync resumes via `ConnectivityManager` callback in under 2 s with backfill
+- [ ] Sending a text via the Send composer on phone appears on desktop within 1 second
+- [ ] Copying a **file** on the desktop does NOT auto-sync; the clip appears locally only until the user invokes Send (per §8.5 invariant)
+- [ ] If phone leaves WiFi and returns, sync resumes via `ConnectivityManager` callback in under 2 s with backfill via `CLIP_LIST since_ts`
+- [ ] Connection indicator on desktop and connection chip on phone reflect all four states (connected / connecting / disconnected / unpaired) within 1 s of state change
 - [ ] Wireshark inspection of WebSocket traffic shows only encrypted bytes
 - [ ] Unpair on either side cleanly disconnects and clears paired keys on both
 - [ ] `SyncTransport` interface compiles with a second stub impl (`BluetoothTransport`) on both sides without changes to the dispatcher
+- [ ] Toggling "Auto-sync text-shaped clips" off on either side stops `CLIP_NEW` traffic in that direction within the next captured clip
 
 ---
 
 ## 8. Phase 3 — File transfer (week 3)
 
-**Goal:** Send files up to 100 MB between desktop and phone over LAN.
+**Goal:** Send files and images up to 100 MB between desktop and phone over LAN, always on explicit user trigger.
 
 ### 8.1 HTTP file endpoint (desktop)
 
@@ -565,37 +678,51 @@ Endpoints:
 
 ### 8.2 Desktop → phone file flow
 
-1. User drags a file onto the Clippy panel, or pastes a file path that's now in clipboard
-2. Desktop creates token, registers `(token, filepath, expires_at)` in memory
-3. Desktop sends `FILE_OFFER {token, filename, size, mime}` via WebSocket
-4. Phone receives, shows notification
-5. User taps "Receive" — phone sends `FILE_REQUEST {token}` over WebSocket (for symmetry/logging)
-6. Phone GETs `http://<desktop>:43118/file/:token`
-7. Desktop streams file, deletes token after completion
-8. Phone saves to `/storage/emulated/0/Download/Clippy/`
+Trigger paths (any of):
+- Right-click on a `file` or `image` clip card → "Send to phone"
+- Hover-overlay phone-icon button on a `file`/`image` clip
+- Drag a file onto the Clippy panel — equivalent to right-click → Send
+
+Then:
+
+1. Desktop creates token, registers `(token, filepath, expires_at)` in memory.
+2. Desktop sends `FILE_OFFER {token, filename, size, mime}` via WebSocket.
+3. The card morphs into a **transfer card** (circular progress arc + ETA + speed) — see §6.3 motion.
+4. Phone receives, shows notification "File offered — {filename} ({size})".
+5. User taps "Receive" — phone sends `FILE_REQUEST {token}` over WebSocket (for symmetry/logging).
+6. Phone GETs `http://<desktop>:43118/file/:token`.
+7. Both sides emit periodic `FILE_PROGRESS {token, bytes, total}` for UI progress.
+8. Desktop streams file, deletes token after completion.
+9. Phone saves to `/storage/emulated/0/Download/Clippy/`.
 
 ### 8.3 Phone → desktop file flow
 
-1. User shares a file to Clippy via Android share-sheet
-2. Phone requests token via WebSocket: `FILE_UPLOAD_REQUEST {filename, size}`
-3. Desktop responds with `{token, url: "http://...:43118/file/upload"}`
-4. Phone POSTs the file
-5. Desktop saves to `~/Downloads/Clippy/` and adds an entry with type `file`
+1. User shares a file to Clippy via Android share-sheet (or picks files in the Send tab).
+2. Phone requests token via WebSocket: `FILE_UPLOAD_REQUEST {filename, size}`.
+3. Desktop responds with `{token, url: "http://...:43118/file/upload"}`.
+4. Phone POSTs the file with the token in `X-Clippy-Token`.
+5. `FILE_PROGRESS` ticks update both UIs.
+6. Desktop saves to `~/Downloads/Clippy/` and adds an entry with type `file`. The new clip appears at the top of the panel.
 
 ### 8.4 Constraints
 
 - Reject files > 100 MB on both sides with clear error
-- Show transfer progress in UI (both sides)
-- Cancellable mid-transfer
+- Show transfer progress in UI (both sides) — circular arc card (desktop), linear bar in row (mobile)
+- Cancellable mid-transfer from either side; cancellation propagates via a `FILE_CANCEL {token}` envelope
 - Resume not required for v1
+- The transfer card stays in the panel until dismissed or replaced (no auto-collapse), and clicking it shows the destination path on completion
 
 ### 8.5 Acceptance criteria for Phase 3
 
-- [ ] Drag a 50 MB file on desktop panel → arrives on phone in under 15 sec
+- [ ] Right-click a `file` clip → "Send to phone" → arrives on phone in under 15 sec for a 50 MB file
+- [ ] Hover-overlay phone button on an `image` clip → arrives on phone, opens with default viewer
+- [ ] Drag a 50 MB file onto the Clippy panel → equivalent flow
+- [ ] No `image`/`file` clip ever crosses the wire without an explicit user gesture (verify by watching `FILE_OFFER` traffic during a 5-minute idle window where the user copies several files into the local clipboard — count must remain 0)
 - [ ] Share-sheet from Android photo gallery → arrives on desktop, appears in history with file icon
 - [ ] Files > 100 MB rejected with clear, non-cryptic error
-- [ ] Cancelling mid-stream cleanly stops both sides, no orphaned tokens or partial files
+- [ ] Cancelling mid-stream from either side cleanly stops both, no orphaned tokens or partial files
 - [ ] Tokens expire and cannot be reused
+- [ ] Transfer card renders the circular progress arc with live percentage and "X.X MB/s · Ys left"
 
 ---
 
@@ -678,12 +805,13 @@ flutter build apk --release
 
 ## 11. Open items / risks
 
-1. **WebKit2GTK font + accent rendering on Wayland.** Fallback colors hard-coded in CSS to avoid GTK theme leakage.
+1. **WebKit2GTK font + accent rendering on Wayland.** Geist is bundled as WOFF2 in Tauri resources so we don't depend on system fonts; fallback color palette is hard-coded.
 2. **`clipboard-master` polling fallback may be flaky** on pure Wayland sessions. The GNOME extension is effectively required for non-degraded UX.
 3. **Android foreground-service notification importance.** Must be IMPORTANCE_LOW (silent but visible) so users can mute via the channel without killing the service.
-4. **Tag sync conflict resolution.** v1 uses last-write-wins by `created_at`. If both sides rename the same tag offline, the later write wins. Document this.
-5. **Custom shell-command actions** open the door for users to run arbitrary commands. Guard with a confirmation dialog the first time a `shell_command` action is invoked on a new clip.
-6. **Two settings surfaces** (extension prefs + app settings). Settle the boundary in code: extension prefs hold ONLY the extension's own settings; everything else is in the app.
+4. **Custom shell-command actions** open the door for users to run arbitrary commands. Guard with a confirmation dialog the first time a `shell_command` action is invoked on a new clip.
+5. **Two settings surfaces** (extension prefs + app settings). Settle the boundary in code: extension prefs hold ONLY the extension's own settings; everything else is in the app.
+6. **Edited clips and round-trip on the phone.** When a user edits a text clip on the desktop, the resulting "Clippy (edited)" clip auto-syncs to the phone — which is the desired behavior. Make sure the source-app rendering on the phone doesn't break for non-existent app id `Clippy (edited)`.
+7. **Layout switching state preservation.** Search query, selected clip, scroll position, and filter must survive a layout change. Verify in tests.
 
 ---
 
@@ -702,7 +830,7 @@ flutter build apk --release
 Clippy v1 ships when all Phase 1, 2, and 3 acceptance criteria pass, AND:
 
 - README with install instructions on all three artifacts (app, extension, mobile)
-- Single end-to-end test: install extension → pair → copy text on desktop → see on phone → reply with text on phone → see on desktop → drag file on desktop → receive on phone → tag a clip on desktop → see tag on phone
+- Single end-to-end test: install extension → pair (with QR) → name both devices → copy text on desktop → see notification on phone → reply via Send composer on phone → see on desktop → right-click an image clip → "Send to phone" → arrives → edit a text clip on desktop → confirm new clip created with `source_app = 'Clippy (edited)'` → switch layout to Spotlight in settings → confirm selection state preserved
 - The dev has used it for at least 7 days as their primary clipboard tool and not switched back to Pano/Copyous
 
 ---
@@ -716,6 +844,7 @@ Clippy v1 ships when all Phase 1, 2, and 3 acceptance criteria pass, AND:
 - Browser extension to push selections from browser context menu
 - Snippets / clipboard templates with variable substitution
 - AI assist: summarize long text on copy, OCR images on copy
+- Tags (Copyous-style 9 colored groups) — deferred from v1 in favour of Pin + Favorite for the visual axis
 - Quick-paste hotkeys (Ctrl+1..9 — deferred from v1)
 - Open panel at mouse / text-cursor position — deferred from v1
 - Public release via Flathub + Play Store
