@@ -216,3 +216,22 @@ pub fn save_settings(state: State<'_, AppState>, settings: Settings) -> Result<(
     let db = state.db.lock().map_err(|e| e.to_string())?;
     settings.save(&db).map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub fn paste_by_id(
+    state: State<'_, AppState>,
+    id: i64,
+    shift_for_terminal: bool,
+) -> Result<(), String> {
+    let (content, mime): (Vec<u8>, String) = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.conn()
+            .query_row(
+                "SELECT content, mime FROM clips WHERE id = ?1",
+                rusqlite::params![id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .map_err(|e| e.to_string())?
+    };
+    crate::paste::paste_to_active(&content, &mime, shift_for_terminal)
+}

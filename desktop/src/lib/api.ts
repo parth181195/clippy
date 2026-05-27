@@ -54,4 +54,6 @@ export const api = {
     invoke<number>('save_edited_clip', { originalId, newContent }),
   loadSettings: () => invoke<Settings>('load_settings'),
   saveSettings: (s: Settings) => invoke<void>('save_settings', { settings: s }),
+  pasteById: (id: number, shiftForTerminal = false) =>
+    invoke<void>('paste_by_id', { id, shiftForTerminal }),
 };

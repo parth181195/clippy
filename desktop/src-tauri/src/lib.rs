@@ -12,6 +12,7 @@ pub mod excluded_apps;
 pub mod incognito;
 pub mod link_preview;
 pub mod notifications;
+pub mod paste;
 pub mod settings;
 pub mod sound;
 pub mod thumb;
@@ -60,19 +61,30 @@ pub fn run() {
                         }
                     } else if shortcut.matches(Modifiers::CONTROL, Code::F11) {
                         let db_clone = db_for_paste.clone();
-                        tauri::async_runtime::spawn(async move {
-                            let id_opt: Option<i64> = db_clone
+                        // Hide the panel first so the previously-focused app receives the paste,
+                        // then synthesise Ctrl+V to that app.
+                        if let Some(w) = app.get_webview_window("panel") {
+                            let _ = w.hide();
+                        }
+                        std::thread::spawn(move || {
+                            std::thread::sleep(std::time::Duration::from_millis(50));
+                            let row: Option<(i64, Vec<u8>, String)> = db_clone
                                 .lock()
                                 .unwrap()
                                 .conn()
                                 .query_row(
-                                    "SELECT id FROM clips ORDER BY created_at DESC LIMIT 1",
+                                    "SELECT id, content, mime FROM clips ORDER BY created_at DESC LIMIT 1",
                                     [],
-                                    |r| r.get(0),
+                                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
                                 )
                                 .ok();
-                            if let Some(id) = id_opt {
-                                tracing::info!("Ctrl+F11: paste-last clip id={id} (paste wiring lands when paste.rs is added)");
+                            if let Some((id, content, mime)) = row {
+                                match crate::paste::paste_to_active(&content, &mime, false) {
+                                    Ok(()) => tracing::info!("Ctrl+F11: pasted clip id={id}"),
+                                    Err(e) => tracing::warn!("paste failed: {e}"),
+                                }
+                            } else {
+                                tracing::info!("Ctrl+F11: no clip to paste");
                             }
                         });
                     } else if shortcut.matches(Modifiers::CONTROL | Modifiers::SHIFT, Code::KeyI) {
@@ -93,6 +105,7 @@ pub fn run() {
             commands::save_edited_clip,
             commands::load_settings,
             commands::save_settings,
+            commands::paste_by_id,
         ])
         .setup(move |app| {
             // Register hotkeys

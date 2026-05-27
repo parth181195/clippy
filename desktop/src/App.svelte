@@ -11,6 +11,8 @@
   import { filterStore } from './lib/stores/filter.svelte';
   import { selectionStore } from './lib/stores/selection.svelte';
   import { onMount } from 'svelte';
+  import { api } from './lib/api';
+  import { getCurrentWindow } from '@tauri-apps/api/window';
 
   let mode = $state<'list' | 'settings' | 'edit'>('list');
   let editingId: number | null = $state(null);
@@ -87,8 +89,19 @@
     }
   }
 
-  async function pasteSelected(_shift: boolean) {
-    // Paste wiring lands when src-tauri/src/paste.rs is added in a follow-up.
+  async function pasteSelected(shift: boolean) {
+    const c = clipsStore.clips[selectedIndex()];
+    if (!c) return;
+    // Hide the panel so the previously-focused app receives the synthesised Ctrl+V.
+    try {
+      await getCurrentWindow().hide();
+    } catch {}
+    await new Promise((r) => setTimeout(r, 50));
+    try {
+      await api.pasteById(c.id, shift);
+    } catch (e) {
+      console.error('paste failed', e);
+    }
   }
   async function toggleFavoriteSelected() {
     const c = clipsStore.clips[selectedIndex()];
