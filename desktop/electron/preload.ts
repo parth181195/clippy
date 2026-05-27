@@ -39,6 +39,10 @@ const api = {
   unpair: () => ipcRenderer.invoke(IPC.unpair) as Promise<void>,
   sendClipToPeer: (clipId: number) =>
     ipcRenderer.invoke(IPC.sendClipToPeer, clipId) as Promise<string | null>,
+
+  exclusionsList: () => ipcRenderer.invoke(IPC.exclusionsList) as Promise<string[]>,
+  exclusionsAdd: (appId: string) => ipcRenderer.invoke(IPC.exclusionsAdd, appId) as Promise<void>,
+  exclusionsRemove: (appId: string) => ipcRenderer.invoke(IPC.exclusionsRemove, appId) as Promise<void>,
   onConnState: (cb: (s: ConnStatus) => void) => {
     const h = (_e: any, s: ConnStatus) => cb(s);
     ipcRenderer.on(IPC.EVT_CONN_STATE, h);

@@ -174,6 +174,19 @@ export function registerIpc(opts: {
   ipcMain.handle(IPC.unpair, () => onUnpair());
   ipcMain.handle(IPC.pairingState, () => onPairingState());
   ipcMain.handle(IPC.sendClipToPeer, (_e, clipId: number) => onSendClipToPeer(clipId));
+
+  ipcMain.handle(IPC.exclusionsList, (): string[] =>
+    (raw.prepare('SELECT app_id FROM excluded_apps ORDER BY app_id').all() as Array<{ app_id: string }>)
+      .map((r) => r.app_id)
+  );
+  ipcMain.handle(IPC.exclusionsAdd, (_e, appId: string): void => {
+    const id = appId.trim().toLowerCase();
+    if (!id) return;
+    raw.prepare('INSERT OR IGNORE INTO excluded_apps(app_id) VALUES (?)').run(id);
+  });
+  ipcMain.handle(IPC.exclusionsRemove, (_e, appId: string): void => {
+    raw.prepare('DELETE FROM excluded_apps WHERE app_id = ?').run(appId);
+  });
 }
 
 function applySetting(s: Settings, key: string, value: string): void {

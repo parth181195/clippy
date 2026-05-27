@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Smartphone, Unlink } from 'lucide-react';
+import { Plus, Smartphone, Unlink, X } from 'lucide-react';
 import { useSettingsStore } from '../lib/store';
 import type { ConnStatus, Settings } from '../../../electron/ipc-types';
 import { Switch } from './Switch';
@@ -33,12 +33,7 @@ export function SettingsView() {
         {section === 'general' && <General s={s} save={save} />}
         {section === 'layout' && <Layout s={s} save={save} />}
         {section === 'hotkeys' && <Hotkeys s={s} save={save} />}
-        {section === 'exclusions' && (
-          <>
-            <h3>Exclusions</h3>
-            <p className="hint">Clips copied while one of these apps is focused are skipped.</p>
-          </>
-        )}
+        {section === 'exclusions' && <Exclusions />}
         {section === 'devices' && <Devices />}
         {section === 'actions' && (
           <>
@@ -57,6 +52,91 @@ export function SettingsView() {
     </div>
   );
 }
+
+function Exclusions() {
+  const [apps, setApps] = useState<string[]>([]);
+  const [draft, setDraft] = useState('');
+
+  async function refresh() {
+    setApps(await window.clippy.exclusionsList());
+  }
+  useEffect(() => { void refresh(); }, []);
+
+  async function add() {
+    const v = draft.trim().toLowerCase();
+    if (!v) return;
+    await window.clippy.exclusionsAdd(v);
+    setDraft('');
+    await refresh();
+  }
+  async function remove(id: string) {
+    await window.clippy.exclusionsRemove(id);
+    await refresh();
+  }
+
+  return (
+    <>
+      <h3>Exclusions</h3>
+      <p className="hint">
+        Clips copied while one of these apps is focused are skipped. Use the app's
+        process / window-class name (e.g. <code>keepassxc</code>, <code>bitwarden</code>).
+      </p>
+      <div className="excl-add">
+        <input
+          type="text"
+          placeholder="add app id…"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') void add(); }}
+        />
+        <button type="button" className="excl-add-btn" onClick={add} disabled={!draft.trim()}>
+          <Plus size={13} strokeWidth={2.4} /> Add
+        </button>
+      </div>
+      <div className="excl-list">
+        {apps.length === 0 && <div className="excl-empty">No exclusions.</div>}
+        {apps.map((id) => (
+          <div key={id} className="excl-chip">
+            <span>{id}</span>
+            <button type="button" onClick={() => remove(id)} aria-label="Remove">
+              <X size={11} strokeWidth={2.5} />
+            </button>
+          </div>
+        ))}
+      </div>
+      <style>{exclusionsCss}</style>
+    </>
+  );
+}
+
+const exclusionsCss = `
+  .excl-add { display: flex; gap: 8px; margin-top: 12px; }
+  .excl-add input { flex: 1; }
+  .excl-add-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 12px; border-radius: 7px;
+    background: var(--cm-accent); color: white; border: none;
+    font-family: inherit; font-size: 12px; font-weight: 500;
+    cursor: pointer;
+  }
+  .excl-add-btn:disabled { opacity: .4; cursor: not-allowed; }
+  .excl-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+  .excl-empty { color: var(--cm-text-tertiary); font-size: 12px; padding: 8px 0; }
+  .excl-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 4px 4px 10px; border-radius: 12px;
+    background: var(--cm-surface-raised);
+    border: 1px solid var(--cm-border-strong);
+    color: var(--cm-text); font-size: 12px;
+    font-family: 'Geist Mono', ui-monospace, monospace;
+  }
+  .excl-chip button {
+    width: 18px; height: 18px; border-radius: 9px;
+    background: transparent; border: none; color: var(--cm-text-secondary);
+    cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+  }
+  .excl-chip button:hover { background: color-mix(in srgb, var(--cm-text) 10%, transparent); color: var(--cm-text); }
+`;
 
 function Devices() {
   const [conn, setConn] = useState<ConnStatus>({ state: 'unpaired', deviceName: null });

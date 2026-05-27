@@ -82,6 +82,10 @@ export const IPC = {
   unpair: 'pair:unpair',
   // File transfer
   sendClipToPeer: 'sync:send-clip',
+  // Exclusions
+  exclusionsList: 'excl:list',
+  exclusionsAdd: 'excl:add',
+  exclusionsRemove: 'excl:remove',
   // Events from main → renderer
   EVT_CLIP_NEW: 'evt:clip-new',
   EVT_INCOGNITO_CHANGED: 'evt:incognito-changed',
