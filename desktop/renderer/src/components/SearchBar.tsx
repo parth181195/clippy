@@ -28,6 +28,9 @@ export const SearchBar = forwardRef<
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
       />
+      {!value && !focused && (
+        <span className="kbd-hint">/</span>
+      )}
       {value && (
         <button className="clear" onClick={() => onChange('')} type="button" aria-label="Clear">
           <X size={14} strokeWidth={2.5} />
@@ -58,6 +61,13 @@ const searchCss = `
   }
   .search input::placeholder { color: var(--cm-text-tertiary); }
   .search .icon { color: var(--cm-text-secondary); display: inline-flex; }
+  .search .kbd-hint {
+    padding: 2px 6px; border-radius: 4px;
+    background: color-mix(in srgb, var(--cm-text) 6%, transparent);
+    color: var(--cm-text-tertiary);
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 10px; font-weight: 600; line-height: 1;
+  }
   .search .clear { background: transparent; border: none; cursor: pointer; color: var(--cm-text-secondary); padding: 2px; display: inline-flex; align-items: center; }
   .search .clear:hover { color: var(--cm-text); }
 `;

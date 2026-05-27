@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, CornerDownLeft, Delete, Settings as SettingsIcon, Star } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Settings as SettingsIcon, Smartphone, Star, WifiOff, Zap } from 'lucide-react';
 import { PanelLayout } from './components/PanelLayout';
+import { Kbd } from './components/Kbd';
 import { SearchBar, type SearchBarHandle } from './components/SearchBar';
 import { FilterChip } from './components/FilterChip';
 import { SettingsView } from './components/SettingsView';
@@ -322,10 +323,11 @@ export function App() {
         <ConnIndicator conn={conn} onPair={() => setMode('pair')} />
         <span className="spacer" />
         <span className="hints">
-          <CornerDownLeft size={10} strokeWidth={2.2} /> paste
+          <Kbd size="xs">↵</Kbd> paste
           <span className="dot">·</span>
-          <Delete size={11} strokeWidth={2.2} /> delete
-          <span className="dot">·</span> Ctrl+Shift+S send-to-phone
+          <Kbd size="xs">⌫</Kbd> delete
+          <span className="dot">·</span>
+          <Kbd size="xs">⇧</Kbd><Kbd size="xs">⌃</Kbd><Kbd size="xs">S</Kbd> send
           <span className="dot">·</span> type to search
         </span>
       </footer>
@@ -340,14 +342,35 @@ function ConnIndicator({ conn, onPair }: { conn: ConnStatus; onPair: () => void 
   if (conn.state === 'unpaired') {
     return (
       <span className="conn">
+        <Smartphone size={11} strokeWidth={2} />
         No device paired ·{' '}
         <a className="pair-link" onClick={onPair}>Pair phone <ArrowRight size={11} strokeWidth={2.2} /></a>
       </span>
     );
   }
-  if (conn.state === 'connecting') return <span className="conn">Connecting to {conn.deviceName ?? 'phone'}…</span>;
-  if (conn.state === 'connected')  return <span className="conn"><span className="dot live" /> synced with {conn.deviceName}</span>;
-  return <span className="conn">{conn.deviceName ?? 'phone'} (offline)</span>;
+  if (conn.state === 'connecting') {
+    return (
+      <span className="conn">
+        <Smartphone size={11} strokeWidth={2} />
+        Connecting to {conn.deviceName ?? 'phone'}…
+      </span>
+    );
+  }
+  if (conn.state === 'connected') {
+    return (
+      <span className="conn">
+        <Smartphone size={11} strokeWidth={2} />
+        <span className="dev-name">{conn.deviceName}</span>
+        <Zap size={11} strokeWidth={2.2} className="zap" />
+      </span>
+    );
+  }
+  return (
+    <span className="conn offline">
+      <WifiOff size={11} strokeWidth={2} />
+      {conn.deviceName ?? 'phone'} (offline)
+    </span>
+  );
 }
 
 const shellCss = `
@@ -392,9 +415,12 @@ const shellCss = `
   }
   footer .dot { opacity: .5; }
   footer .spacer { flex: 1; }
-  footer .hints { opacity: .7; display: inline-flex; align-items: center; gap: 4px; }
-  footer .hints svg { vertical-align: -1px; }
+  footer .hints { opacity: .8; display: inline-flex; align-items: center; gap: 5px; }
+  footer .hints .dot { opacity: .4; }
   footer .pair-link svg { vertical-align: -1px; }
+  footer .conn svg { vertical-align: -1px; }
+  footer .conn .dev-name { color: var(--cm-text); font-weight: 500; }
+  footer .conn .zap { color: var(--cm-accent); }
   .toast {
     position: fixed; bottom: 56px; left: 50%; transform: translateX(-50%);
     background: var(--cm-surface-raised); color: var(--cm-text);

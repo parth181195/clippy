@@ -3,6 +3,53 @@ import { Star, Send, Pin, Trash2, Pencil } from 'lucide-react';
 import * as Menu from '@radix-ui/react-context-menu';
 import type { ClipDto } from '../../../electron/ipc-types';
 
+const BASH_KW = /\b(sudo|cd|ls|cat|grep|curl|echo|export|apt|install|docker|compose|up|down|run|build|exec)\b/;
+const TS_KW = /\b(const|let|var|function|return|if|else|import|export|from|async|await|new|class|extends|interface|type|null|undefined|true|false)\b/;
+
+function highlight(code: string): React.ReactNode {
+  const isBash = /^[#$]|^\s*(sudo|apt|cd|ls|docker|curl)\s/.test(code);
+  const kwRe = isBash ? BASH_KW : TS_KW;
+  const out: { t: string; v: string }[] = [];
+  let i = 0;
+  while (i < code.length) {
+    const slice = code.slice(i);
+    let m: RegExpMatchArray | null;
+    if ((m = slice.match(/^(\/\/[^\n]*|#[^\n]*)/))) { out.push({ t: 'c', v: m[0] }); i += m[0].length; continue; }
+    if ((m = slice.match(/^(['"`])(?:\\.|(?!\1).)*\1/))) { out.push({ t: 's', v: m[0] }); i += m[0].length; continue; }
+    const kw = slice.match(new RegExp('^' + kwRe.source));
+    if (kw) { out.push({ t: 'k', v: kw[0] }); i += kw[0].length; continue; }
+    if ((m = slice.match(/^\d+(\.\d+)?/))) { out.push({ t: 'n', v: m[0] }); i += m[0].length; continue; }
+    if ((m = slice.match(/^[a-zA-Z_$][\w$]*/))) { out.push({ t: 'i', v: m[0] }); i += m[0].length; continue; }
+    out.push({ t: 'p', v: code[i] });
+    i++;
+  }
+  return out.map((tok, idx) => <span key={idx} className={`hl-${tok.t}`}>{tok.v}</span>);
+}
+
+function hexToRgb(hex: string): string | null {
+  const m = hex.trim().match(/^#?([\da-f]{6})$/i) || hex.trim().match(/^#?([\da-f]{3})$/i);
+  if (!m) return null;
+  let h = m[1];
+  if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+  const n = parseInt(h, 16);
+  return `rgb(${(n >> 16) & 0xff}, ${(n >> 8) & 0xff}, ${n & 0xff})`;
+}
+
+function fileExt(name: string, mime: string): string {
+  const m = name.match(/\.([a-z0-9]{1,6})$/i);
+  if (m) return m[1].toUpperCase();
+  if (mime.includes('pdf')) return 'PDF';
+  if (mime.includes('gzip') || mime.includes('zip')) return 'ZIP';
+  if (mime.includes('image/')) return mime.split('/')[1].toUpperCase();
+  return 'BIN';
+}
+
+function hashHue(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h) % 360;
+}
+
 export type CardState = 'default' | 'hover' | 'selected' | 'pressed';
 export type Density = 'compact' | 'comfortable' | 'spacious';
 
@@ -48,16 +95,56 @@ export function ClipCard({
 
   let content: React.ReactNode;
   if (ct === 'image') content = <ImageThumb id={clip.id} />;
-  else if (ct === 'color')
+  else if (ct === 'color') {
+    const rgb = hexToRgb(clip.preview);
     content = (
-      <>
-        <div className="color-swatch" style={{ background: clip.preview }} />
-        <div className="color-text">{clip.preview}</div>
-      </>
+      <div className="color-body">
+        <div className="color-swatch" style={{ background: clip.preview }}>
+          <div className="color-gloss" />
+        </div>
+        <div className="color-meta">
+          <div className="color-hex">{clip.preview.trim().toUpperCase()}</div>
+          {rgb && <div className="color-rgb">{rgb}</div>}
+        </div>
+      </div>
     );
-  else if (ct === 'emoji') content = <div className="emoji">{clip.preview}</div>;
-  else if (ct === 'code') content = <pre className="code">{clip.preview}</pre>;
-  else content = <div className="text">{clip.preview}</div>;
+  } else if (ct === 'emoji') {
+    content = <div className="emoji">{clip.preview}</div>;
+  } else if (ct === 'code') {
+    content = <pre className="code">{highlight(clip.preview)}</pre>;
+  } else if (ct === 'link') {
+    const url = clip.preview.trim();
+    const host = url.replace(/^https?:\/\/(www\.)?/, '').split(/[/?#]/)[0] || '?';
+    const initial = (host[0] ?? '?').toUpperCase();
+    content = (
+      <div className="link-body">
+        <div className="link-row">
+          <span className="favicon" style={{ background: `hsl(${hashHue(host)}, 60%, 50%)` }}>{initial}</span>
+          <span className="link-url">{host}</span>
+        </div>
+        <div className="link-title">{url}</div>
+      </div>
+    );
+  } else if (ct === 'file') {
+    const ext = fileExt(clip.preview, clip.mime);
+    content = (
+      <div className="file-body">
+        <div className="file-glyph">
+          <svg width="44" height="52" viewBox="0 0 44 52" fill="none">
+            <path d="M4 4a4 4 0 0 1 4-4h22l10 10v38a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4z" fill="var(--cm-surface)" stroke="var(--cm-border-strong)" strokeWidth="1" />
+            <path d="M30 0l10 10h-7a3 3 0 0 1-3-3z" fill="var(--cm-surface-raised)" stroke="var(--cm-border-strong)" strokeWidth="1" />
+            <rect x="10" y="22" width="18" height="1.5" rx="0.75" fill="var(--cm-border-strong)" />
+            <rect x="10" y="26" width="22" height="1.5" rx="0.75" fill="var(--cm-border-strong)" />
+            <rect x="10" y="30" width="14" height="1.5" rx="0.75" fill="var(--cm-border-strong)" />
+          </svg>
+          <span className="file-ext">{ext}</span>
+        </div>
+        <div className="file-name">{clip.preview}</div>
+      </div>
+    );
+  } else {
+    content = <div className="text">{clip.preview}</div>;
+  }
 
   const cardBtn = (
     <button
@@ -266,14 +353,58 @@ const cardCss = `
   .image-placeholder {
     background: linear-gradient(135deg, color-mix(in srgb, var(--cm-accent) 20%, var(--cm-surface-raised)) 0%, var(--cm-surface-raised) 60%);
   }
+  .color-body { display: flex; flex-direction: column; gap: 10px; height: 100%; }
   .color-swatch {
-    flex: 1; border-radius: 8px;
-    box-shadow: inset 0 0 0 1px rgba(0,0,0,.06);
+    flex: 1; border-radius: 8px; position: relative; overflow: hidden;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
   }
-  .color-text {
-    font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px;
-    color: var(--cm-text-secondary);
+  .color-gloss {
+    position: absolute; top: 0; left: 0; right: 0; height: 40%;
+    background: linear-gradient(180deg, rgba(255,255,255,.10) 0%, rgba(255,255,255,0) 100%);
   }
+  .color-hex { color: var(--cm-text); font-weight: 500; font-size: 12px; letter-spacing: 0.4px; font-family: 'Geist Mono', ui-monospace, monospace; }
+  .color-rgb { color: var(--cm-text-secondary); font-size: 10px; font-family: 'Geist Mono', ui-monospace, monospace; margin-top: 2px; }
+  .link-body { display: flex; flex-direction: column; gap: 10px; }
+  .link-row { display: flex; align-items: center; gap: 7px; }
+  .favicon {
+    width: 16px; height: 16px; border-radius: 4px;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: white; font-size: 9px; font-weight: 700; flex-shrink: 0;
+    box-shadow: inset 0 -1px 0 rgba(0,0,0,.15), 0 1px 2px rgba(0,0,0,.15);
+  }
+  .link-url {
+    font-size: 11px; color: var(--cm-text-secondary);
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+  }
+  .link-title {
+    font-size: 13px; color: var(--cm-text); font-weight: 500; line-height: 1.4;
+    overflow: hidden; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical;
+    letter-spacing: -0.1px; word-break: break-word;
+  }
+  .file-body { display: flex; flex-direction: column; gap: 10px; height: 100%; }
+  .file-glyph {
+    position: relative; flex: 1; display: flex; align-items: center; justify-content: center;
+    background: var(--cm-surface-sunken); border-radius: 8px;
+    border: 1px dashed var(--cm-border-subtle);
+  }
+  .file-ext {
+    position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+    padding: 2px 6px; border-radius: 3px;
+    background: var(--cm-text-tertiary); color: white;
+    font-size: 8px; font-weight: 700; letter-spacing: 0.6px; line-height: 1;
+    font-family: 'Geist Mono', ui-monospace, monospace;
+  }
+  .file-name {
+    font-size: 12px; color: var(--cm-text); font-weight: 500;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .hl-k { color: #C792EA; }
+  .hl-s { color: #7CE8B5; }
+  .hl-c { color: var(--cm-text-tertiary); font-style: italic; }
+  .hl-n { color: #FFCB6B; }
+  .hl-i { color: var(--cm-text); }
+  .hl-p { color: var(--cm-text-secondary); }
   .emoji { display: flex; align-items: center; justify-content: center; height: 100%; font-size: 64px; line-height: 1; }
   .bottom { display: flex; align-items: center; justify-content: space-between; min-height: 16px; }
   .time {
