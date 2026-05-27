@@ -17,6 +17,7 @@ class _RecentScreenState extends State<RecentScreen> {
   List<Map<String, Object?>> _clips = [];
   final Map<int, Uint8List> _bytesById = {};
   Timer? _debouncedLoad;
+  String _query = '';
 
   @override
   void initState() {
@@ -75,8 +76,28 @@ class _RecentScreenState extends State<RecentScreen> {
     _load();
   }
 
+  List<Map<String, Object?>> get _filtered {
+    final q = _query.trim().toLowerCase();
+    if (q.isEmpty) return _clips;
+    return _clips.where((r) {
+      final preview = (r['preview']?.toString() ?? '').toLowerCase();
+      final source = (r['source_app']?.toString() ?? '').toLowerCase();
+      return preview.contains(q) || source.contains(q);
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _SearchBar(value: _query, onChanged: (v) => setState(() => _query = v)),
+        Expanded(child: _buildList()),
+      ],
+    );
+  }
+
+  Widget _buildList() {
+    final visible = _filtered;
     if (_clips.isEmpty) {
       return Center(
         child: Column(
@@ -89,12 +110,18 @@ class _RecentScreenState extends State<RecentScreen> {
         ),
       );
     }
+    if (visible.isEmpty) {
+      return Center(
+        child: Text('No matches for "$_query"',
+            style: TextStyle(color: ClippyTokens.textSecDark)),
+      );
+    }
     return ListView.separated(
       padding: const EdgeInsets.only(top: 6, bottom: 80),
-      itemCount: _clips.length,
+      itemCount: visible.length,
       separatorBuilder: (_, i) => Divider(height: 1, thickness: 1, color: ClippyTokens.borderSubtleDark, indent: 16, endIndent: 16),
       itemBuilder: (ctx, i) {
-        final row = _clips[i];
+        final row = visible[i];
         return Dismissible(
           key: ValueKey(row['id']),
           background: Container(
@@ -122,6 +149,40 @@ class _RecentScreenState extends State<RecentScreen> {
         (raw is List<int> ? Uint8List.fromList(raw) : null);
     if (bytes != null && !_bytesById.containsKey(id)) _bytesById[id] = bytes;
     return bytes;
+  }
+}
+
+class _SearchBar extends StatelessWidget {
+  final String value;
+  final ValueChanged<String> onChanged;
+  const _SearchBar({required this.value, required this.onChanged});
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+      child: TextField(
+        onChanged: onChanged,
+        controller: TextEditingController(text: value)
+          ..selection = TextSelection.fromPosition(TextPosition(offset: value.length)),
+        decoration: InputDecoration(
+          hintText: 'Search clips…',
+          hintStyle: TextStyle(color: ClippyTokens.textTerDark, fontSize: 13),
+          prefixIcon: Icon(Icons.search, size: 18, color: ClippyTokens.textSecDark),
+          suffixIcon: value.isNotEmpty
+              ? IconButton(
+                  icon: Icon(Icons.close, size: 16, color: ClippyTokens.textSecDark),
+                  onPressed: () => onChanged(''),
+                )
+              : null,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          filled: true,
+          fillColor: ClippyTokens.surfaceDark,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+        ),
+        style: TextStyle(color: ClippyTokens.textDark, fontSize: 13),
+      ),
+    );
   }
 }
 
