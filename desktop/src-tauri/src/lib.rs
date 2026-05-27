@@ -1,8 +1,13 @@
 use tracing_subscriber::EnvFilter;
 
+pub mod actions;
 pub mod clipboard;
 pub mod db;
 pub mod excluded_apps;
+pub mod incognito;
+pub mod notifications;
+pub mod settings;
+pub mod sound;
 pub mod thumb;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
