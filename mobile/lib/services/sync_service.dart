@@ -58,7 +58,12 @@ class SyncService extends ChangeNotifier {
   static final SyncService instance = SyncService._();
   SyncService._();
 
-  final _storage = const FlutterSecureStorage();
+  final _storage = const FlutterSecureStorage(
+    aOptions: AndroidOptions(
+      resetOnError: true,
+      encryptedSharedPreferences: true,
+    ),
+  );
   IOWebSocketChannel? _channel;
   Uint8List? _psk;
   PairingPayload? _paired;
@@ -89,7 +94,14 @@ class SyncService extends ChangeNotifier {
   String? get desktopName => _paired?.name;
 
   Future<void> start() async {
-    final raw = await _storage.read(key: 'pairing');
+    String? raw;
+    try {
+      raw = await _storage.read(key: 'pairing');
+    } catch (e) {
+      debugPrint('[clippy] secure-storage read failed (likely stale keystore): $e');
+      try { await _storage.deleteAll(); } catch (_) {}
+      raw = null;
+    }
     if (raw == null) {
       state = ConnState.unpaired;
       notifyListeners();

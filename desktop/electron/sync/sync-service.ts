@@ -204,12 +204,10 @@ export class SyncService {
       this.deviceId = deviceId;
       this.setState('connected', name);
       await this.transport?.send(makeEnvelope('core', TYPES.ACK, { ref_id: env.id }));
-      // Backfill recent history exactly once per device per process — prevents
-      // re-sending the full history on every reconnect.
-      if (!this.backfilledDevices.has(deviceId)) {
-        this.backfilledDevices.add(deviceId);
-        this.clipPlugin?.sendHistory().catch((e) => log(`sendHistory: ${e}`));
-      }
+      // Backfill recent history on every HELLO. Receiver UNIQUE(content_hash)
+      // drops dupes and the bump-on-conflict path keeps existing rows on top,
+      // so re-sending is cheap and survives re-installs.
+      this.clipPlugin?.sendHistory().catch((e) => log(`sendHistory: ${e}`));
       return;
     }
     if (env.plugin === 'clipboard') {

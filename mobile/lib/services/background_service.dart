@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart' show WidgetsFlutterBinding;
 import 'package:flutter_background_service/flutter_background_service.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:web_socket_channel/io.dart';
@@ -20,6 +21,19 @@ class ClippyBackground {
   static const _notifId = 4711;
 
   static Future<void> init() async {
+    // Android O+ requires a notification channel before any foreground service
+    // notification can be posted. Register it before configuring the service.
+    final ln = FlutterLocalNotificationsPlugin();
+    const channel = AndroidNotificationChannel(
+      _notifChannel,
+      'Clippy sync',
+      description: 'Keeps Clippy connected to your desktop.',
+      importance: Importance.low,
+    );
+    await ln
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(channel);
+
     final svc = FlutterBackgroundService();
     await svc.configure(
       androidConfiguration: AndroidConfiguration(
@@ -198,11 +212,11 @@ class _BgSyncLoop {
   }
 
   void _setNotif(String title, String body) {
-    if (service is AndroidServiceInstance) {
-      (service as AndroidServiceInstance).setForegroundNotificationInfo(
-        title: title,
-        content: body,
-      );
-    }
+    // AndroidServiceInstance is an extension on ServiceInstance — calling
+    // setForegroundNotificationInfo dynamically avoids importing the android
+    // package directly (which would fail with a 'main isolate only' check).
+    try {
+      (service as dynamic).setForegroundNotificationInfo(title: title, content: body);
+    } catch (_) {}
   }
 }
