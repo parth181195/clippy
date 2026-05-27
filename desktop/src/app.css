@@ -1,7 +1,6 @@
-html, body, #app { height: 100%; margin: 0; padding: 0; background: transparent; }
+html, body, #app { height: 100%; margin: 0; padding: 0; }
+html { background: #16161F; }
+body { background: #16161F; color: #ECECF1; font-family: 'Geist', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
 * { box-sizing: border-box; }
-body {
-  font-family: system-ui, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  color: #ECECF1;
-}
+/* Default to dark theme until SettingsStore sets the data-theme attribute */
+html:not([data-theme]) { color-scheme: dark; }
