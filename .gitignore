@@ -1,1 +1,40 @@
+# Existing
 clippy-handoff*.zip
+
+# Rust / Tauri
+desktop/src-tauri/target/
+desktop/src-tauri/Cargo.lock
+desktop/node_modules/
+desktop/dist/
+desktop/dist-ssr/
+desktop/*.local
+
+# GNOME extension
+extension/node_modules/
+extension/dist/
+
+# Flutter
+mobile/.dart_tool/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/.idea/
+mobile/build/
+mobile/android/.gradle/
+mobile/android/.idea/
+mobile/android/local.properties
+mobile/ios/Pods/
+mobile/ios/.symlinks/
+mobile/ios/Flutter/Flutter.framework
+mobile/ios/Flutter/Flutter.podspec
+mobile/ios/Runner.xcworkspace/xcuserdata/
+mobile/ios/Runner.xcodeproj/xcuserdata/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Test/coverage
+**/coverage/
+**/.coverage
