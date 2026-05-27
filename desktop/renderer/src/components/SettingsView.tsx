@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Smartphone, Unlink } from 'lucide-react';
 import { useSettingsStore } from '../lib/store';
-import type { Settings } from '../../../electron/ipc-types';
+import type { ConnStatus, Settings } from '../../../electron/ipc-types';
 import { Switch } from './Switch';
 
-type Section = 'general' | 'hotkeys' | 'exclusions' | 'layout' | 'actions' | 'about';
+type Section = 'general' | 'hotkeys' | 'exclusions' | 'layout' | 'devices' | 'actions' | 'about';
 
 const ACCENT_SWATCHES = ['#E95678', '#7C7CFF', '#5BC0BE', '#C792EA', '#ECECF1'];
 
@@ -15,7 +16,7 @@ export function SettingsView() {
   return (
     <div className="settings">
       <nav>
-        {(['general', 'hotkeys', 'exclusions', 'layout', 'actions', 'about'] as Section[]).map(
+        {(['general', 'hotkeys', 'exclusions', 'layout', 'devices', 'actions', 'about'] as Section[]).map(
           (id) => (
             <button
               key={id}
@@ -38,6 +39,7 @@ export function SettingsView() {
             <p className="hint">Clips copied while one of these apps is focused are skipped.</p>
           </>
         )}
+        {section === 'devices' && <Devices />}
         {section === 'actions' && (
           <>
             <h3>Per-type Actions</h3>
@@ -55,6 +57,93 @@ export function SettingsView() {
     </div>
   );
 }
+
+function Devices() {
+  const [conn, setConn] = useState<ConnStatus>({ state: 'unpaired', deviceName: null });
+  useEffect(() => {
+    void window.clippy.pairingState().then(setConn);
+    const off = window.clippy.onConnState(setConn);
+    return () => off();
+  }, []);
+  const stateLabel = {
+    connected: 'Connected',
+    connecting: 'Connecting…',
+    disconnected: 'Offline',
+    unpaired: 'Not paired',
+  }[conn.state];
+  const dotColor = {
+    connected: '#4ade80',
+    connecting: '#facc15',
+    disconnected: '#f87171',
+    unpaired: 'var(--cm-text-tertiary)',
+  }[conn.state];
+  return (
+    <>
+      <h3>Devices</h3>
+      <p className="hint">
+        Only one paired device for v1. Pair from the footer indicator or via the panel.
+      </p>
+      {conn.state === 'unpaired' ? (
+        <div className="device-empty">
+          <Smartphone size={32} strokeWidth={1.5} />
+          <div>No paired device.</div>
+        </div>
+      ) : (
+        <div className="device-card">
+          <div className="device-row">
+            <Smartphone size={20} strokeWidth={2} />
+            <div className="device-meta">
+              <div className="device-name">{conn.deviceName ?? 'phone'}</div>
+              <div className="device-state">
+                <span className="device-dot" style={{ background: dotColor }} />
+                {stateLabel}
+              </div>
+            </div>
+            <button
+              className="device-unpair"
+              type="button"
+              onClick={() => window.clippy.unpair()}
+            >
+              <Unlink size={13} strokeWidth={2} /> Unpair
+            </button>
+          </div>
+        </div>
+      )}
+      <style>{devicesCss}</style>
+    </>
+  );
+}
+
+const devicesCss = `
+  .device-empty {
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+    padding: 32px; color: var(--cm-text-tertiary);
+  }
+  .device-card {
+    margin-top: 12px;
+    background: var(--cm-surface-raised);
+    border: 1px solid var(--cm-border-subtle);
+    border-radius: 10px; padding: 14px;
+  }
+  .device-row { display: flex; align-items: center; gap: 12px; }
+  .device-meta { flex: 1; min-width: 0; }
+  .device-name { color: var(--cm-text); font-weight: 600; font-size: 13px; }
+  .device-state {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: var(--cm-text-secondary); font-size: 11.5px; margin-top: 2px;
+    font-family: 'Geist Mono', ui-monospace, monospace;
+  }
+  .device-dot { width: 7px; height: 7px; border-radius: 50%; }
+  .device-unpair {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 6px 11px; border-radius: 7px;
+    background: transparent; color: #f87171;
+    border: 1px solid color-mix(in srgb, #f87171 35%, transparent);
+    font-size: 12px; font-weight: 500; cursor: pointer;
+    font-family: inherit;
+  }
+  .device-unpair:hover { background: color-mix(in srgb, #f87171 12%, transparent); }
+`;
 
 function Row({
   label,

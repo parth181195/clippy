@@ -233,6 +233,7 @@ export function App() {
         <div className="chips">
           <FilterChip
             label="All"
+            count={clips.length}
             active={filter.type === null && !filter.favoritesOnly}
             onClick={() => {
               filter.setType(null);
@@ -241,18 +242,23 @@ export function App() {
           />
           <FilterChip
             label="Favorites"
+            count={clips.filter((c) => c.isFavorite).length}
             icon={<Star size={12} strokeWidth={2} fill={filter.favoritesOnly ? 'currentColor' : 'none'} />}
             active={filter.favoritesOnly}
             onClick={() => filter.setFavoritesOnly(!filter.favoritesOnly)}
           />
-          {TYPES.map((t) => (
-            <FilterChip
-              key={t}
-              label={t[0].toUpperCase() + t.slice(1)}
-              active={filter.type === t}
-              onClick={() => filter.setType(filter.type === t ? null : t)}
-            />
-          ))}
+          {TYPES.map((t) => {
+            const n = clips.filter((c) => c.contentType === t).length;
+            return (
+              <FilterChip
+                key={t}
+                label={t[0].toUpperCase() + t.slice(1)}
+                count={n}
+                active={filter.type === t}
+                onClick={() => filter.setType(filter.type === t ? null : t)}
+              />
+            );
+          })}
         </div>
         <button
           className="settings-btn"

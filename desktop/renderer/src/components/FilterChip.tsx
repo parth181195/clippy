@@ -17,7 +17,7 @@ export function FilterChip({
     <button className={`chip ${active ? 'active' : ''}`} onClick={onClick} type="button">
       {icon && <span className="icon">{icon}</span>}
       <span>{label}</span>
-      {count !== null && <span className="count">{count}</span>}
+      {count != null && count > 0 && <span className="count">{count}</span>}
       <style>{chipCss}</style>
     </button>
   );
