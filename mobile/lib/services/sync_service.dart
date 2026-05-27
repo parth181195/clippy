@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:sqflite/sqflite.dart';
@@ -63,6 +64,8 @@ class SyncService extends ChangeNotifier {
   String _phoneName = 'phone';
   bool _connecting = false;
   Timer? _retryTimer;
+  int _retryAttempt = 0;
+  StreamSubscription? _connSub;
   final Map<String, TransferProgress> transfers = {};
   late final FileTransferService _files = FileTransferService(
     send: _send,
@@ -94,6 +97,17 @@ class SyncService extends ChangeNotifier {
     _paired = PairingPayload.fromJson(jsonDecode(raw) as Map<String, dynamic>);
     _psk = base64Decode(_paired!.psk);
     _phoneName = (await _storage.read(key: 'phone_name')) ?? 'phone';
+    // Reconnect immediately when Wi-Fi comes back (bypasses exp-backoff wait).
+    _connSub?.cancel();
+    _connSub = Connectivity().onConnectivityChanged.listen((results) {
+      final hasNet = results.any((r) => r != ConnectivityResult.none);
+      if (hasNet && state != ConnState.connected && !_connecting) {
+        debugPrint('[clippy] network back → reconnect');
+        _retryAttempt = 0;
+        _retryTimer?.cancel();
+        _connect();
+      }
+    });
     await _connect();
   }
 
@@ -145,6 +159,7 @@ class SyncService extends ChangeNotifier {
         },
       ));
       state = ConnState.connected;
+      _retryAttempt = 0;
       debugPrint('[clippy] connected to ${_paired!.host}:${_paired!.port}');
       notifyListeners();
     } catch (e) {
@@ -161,7 +176,10 @@ class SyncService extends ChangeNotifier {
 
   void _scheduleRetry() {
     _retryTimer?.cancel();
-    _retryTimer = Timer(const Duration(seconds: 5), () {
+    // Exponential backoff: 2s, 4s, 8s, 16s, 32s, then cap at 60s.
+    final attempt = _retryAttempt++;
+    final seconds = (attempt >= 5) ? 60 : (1 << (attempt + 1));
+    _retryTimer = Timer(Duration(seconds: seconds), () {
       if (state != ConnState.connected && !_connecting) _connect();
     });
   }
