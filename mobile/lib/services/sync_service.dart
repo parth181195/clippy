@@ -221,6 +221,10 @@ class SyncService extends ChangeNotifier {
     }
   }
 
+  /// Called by the background isolate when it has written a new clip.
+  /// Fires notifyListeners so the foreground UI re-loads from DB.
+  void notifyExternalChange() => notifyListeners();
+
   /// Send raw bytes (image/file) to the paired desktop.
   Future<String?> sendFile({
     required Uint8List bytes,

@@ -24,6 +24,9 @@ dependencies:
   connectivity_plus: ^6.0.5
   file_picker: ^8.1.2
   crypto: ^3.0.5
+  flutter_background_service: ^5.0.10
+  flutter_background_service_android: ^6.2.7
+  disable_battery_optimization: ^1.1.2
 
 dev_dependencies:
   flutter_test:
