@@ -85,7 +85,7 @@ function createWindow() {
     resizable: false,
     skipTaskbar: false,
     alwaysOnTop: false,
-    show: true,
+    show: !process.argv.includes('--hidden'),
     webPreferences: {
       preload: join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -152,15 +152,28 @@ function installAutostart() {
   const dir = join(homedir(), '.config', 'autostart');
   mkdirSync(dir, { recursive: true });
   const file = join(dir, 'clippy.desktop');
-  if (existsSync(file)) return;
-  const exec = process.argv0;
+  // electron binary needs the app dir as its first arg; previous version
+  // omitted it which meant the autostart entry silently failed to load
+  // anything. Also pass the Wayland positioning flags so the panel
+  // shows up where we expect.
+  const electronBin = process.argv0;
+  const appDir = app.getAppPath();
+  const exec = [
+    electronBin,
+    appDir,
+    '--no-sandbox',
+    '--disable-gpu-sandbox',
+    '--ozone-platform-hint=x11',
+    '--hidden',
+  ].map((a) => (a.includes(' ') ? `"${a}"` : a)).join(' ');
   const content = `[Desktop Entry]
 Type=Application
 Name=Clippy
 Comment=LAN clipboard manager
-Exec=${exec} --hidden
+Exec=${exec}
 X-GNOME-Autostart-enabled=true
 Terminal=false
+NoDisplay=false
 `;
   writeFileSync(file, content, { mode: 0o644 });
 }
