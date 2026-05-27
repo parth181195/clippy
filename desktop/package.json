@@ -7,21 +7,25 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build && tsc -p tsconfig.electron.json",
-    "start": "electron .",
-    "electron:dev": "concurrently -k -n vite,electron -c cyan,magenta \"vite\" \"wait-on tcp:5173 && tsc -p tsconfig.electron.json --watch & electron .\"",
-    "electron:run": "tsc -p tsconfig.electron.json && electron .",
+    "start": "electron . --no-sandbox",
+    "electron:dev": "concurrently -k -n vite,electron -c cyan,magenta \"vite\" \"wait-on tcp:5173 && tsc -p tsconfig.electron.json --watch & electron . --no-sandbox\"",
+    "electron:run": "tsc -p tsconfig.electron.json && electron . --no-sandbox",
     "package": "vite build && tsc -p tsconfig.electron.json && electron-builder",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.electron.json --noEmit"
+    "lint": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.electron.json --noEmit",
+    "postinstall": "electron-rebuild -f -w better-sqlite3"
   },
   "dependencies": {
     "better-sqlite3": "^11.3.0",
+    "dbus-next": "^0.10.2",
     "node-notifier": "^10.0.1",
-    "play-sound": "^1.1.6",
-    "dbus-next": "^0.10.2"
+    "play-sound": "^1.1.6"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.4",
+    "@testing-library/jest-dom": "^6.6.0",
+    "@testing-library/react": "^16.0.1",
     "@types/better-sqlite3": "^7.6.11",
     "@types/node": "^22.7.0",
     "@types/react": "^18.3.11",
@@ -33,8 +37,6 @@
     "jsdom": "^25.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "@testing-library/react": "^16.0.1",
-    "@testing-library/jest-dom": "^6.6.0",
     "typescript": "^5.6.0",
     "vite": "^5.4.0",
     "vitest": "^2.1.0",
@@ -43,10 +45,19 @@
   "build": {
     "appId": "io.clippy.app",
     "productName": "Clippy",
-    "files": ["dist/**/*", "dist-electron/**/*", "assets/**/*"],
-    "directories": { "output": "release" },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "assets/**/*"
+    ],
+    "directories": {
+      "output": "release"
+    },
     "linux": {
-      "target": ["AppImage", "deb"],
+      "target": [
+        "AppImage",
+        "deb"
+      ],
       "category": "Utility",
       "icon": "assets/icons"
     }

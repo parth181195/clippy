@@ -1,12 +1,12 @@
 import { ipcMain } from 'electron';
-import type { Db } from './db.js';
+import type { Db } from './db';
 import {
   DEFAULT_SETTINGS,
   IPC,
   type ClipDto,
   type ListClipsArgs,
   type Settings,
-} from './ipc-types.js';
+} from './ipc-types';
 
 // Convert snake_case DB row → camelCase DTO for the renderer.
 function rowToDto(r: any): ClipDto {

@@ -3,7 +3,7 @@ import { app } from 'electron';
 import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import type { ContentType } from './ipc-types.js';
+import type { ContentType } from './ipc-types';
 
 const SCHEMA_V1 = `
 PRAGMA journal_mode = WAL;

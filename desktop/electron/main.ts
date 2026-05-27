@@ -1,14 +1,10 @@
 import { app, BrowserWindow, globalShortcut, Tray, Menu, nativeImage } from 'electron';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { Db } from './db.js';
-import { registerIpc } from './ipc.js';
-import { DEFAULT_SETTINGS, IPC } from './ipc-types.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { Db } from './db';
+import { registerIpc } from './ipc';
+import { DEFAULT_SETTINGS, IPC } from './ipc-types';
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -154,6 +150,6 @@ app.on('will-quit', () => {
 });
 
 // Keep app alive when all windows are closed (clipboard managers run in tray).
-app.on('window-all-closed', (e: Electron.Event) => {
-  e.preventDefault();
+app.on('window-all-closed', () => {
+  // intentionally do nothing — app continues running with tray icon
 });

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { IPC, type ClipDto, type ListClipsArgs, type Settings } from './ipc-types.js';
+import { IPC, type ClipDto, type ListClipsArgs, type Settings } from './ipc-types';
 
 const api = {
   listClips: (args?: ListClipsArgs) => ipcRenderer.invoke(IPC.listClips, args ?? {}) as Promise<ClipDto[]>,
