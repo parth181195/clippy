@@ -1,4 +1,5 @@
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
+import { Search, X } from 'lucide-react';
 
 export interface SearchBarHandle {
   focus: () => void;
@@ -17,7 +18,7 @@ export const SearchBar = forwardRef<
   useImperativeHandle(ref, () => ({ focus: () => inputRef.current?.focus() }));
   return (
     <div className={`search ${focused ? 'focused' : ''}`}>
-      <span className="icon">🔍</span>
+      <span className="icon"><Search size={14} strokeWidth={2} /></span>
       <input
         ref={inputRef}
         type="text"
@@ -29,7 +30,7 @@ export const SearchBar = forwardRef<
       />
       {value && (
         <button className="clear" onClick={() => onChange('')} type="button" aria-label="Clear">
-          ×
+          <X size={14} strokeWidth={2.5} />
         </button>
       )}
       <style>{searchCss}</style>
@@ -56,6 +57,7 @@ const searchCss = `
     color: var(--cm-text); font-family: inherit; font-size: 13px;
   }
   .search input::placeholder { color: var(--cm-text-tertiary); }
-  .search .icon { color: var(--cm-text-secondary); font-size: 14px; }
-  .search .clear { background: transparent; border: none; cursor: pointer; color: var(--cm-text-secondary); font-size: 14px; padding: 2px; }
+  .search .icon { color: var(--cm-text-secondary); display: inline-flex; }
+  .search .clear { background: transparent; border: none; cursor: pointer; color: var(--cm-text-secondary); padding: 2px; display: inline-flex; align-items: center; }
+  .search .clear:hover { color: var(--cm-text); }
 `;

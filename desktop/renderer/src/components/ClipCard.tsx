@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Star } from 'lucide-react';
 import type { ClipDto } from '../../../electron/ipc-types';
 
 export type CardState = 'default' | 'hover' | 'selected' | 'pressed';
@@ -73,11 +74,9 @@ export function ClipCard({
       <div className="content">{content}</div>
       <div className="bottom">
         <span className="time">{relTime(clip.createdAt)}</span>
-        {clip.isFavorite ? (
-          <span className="star">★</span>
-        ) : (
-          <span className="star empty">☆</span>
-        )}
+        <span className={`star ${clip.isFavorite ? '' : 'empty'}`}>
+          <Star size={12} strokeWidth={2} fill={clip.isFavorite ? 'currentColor' : 'none'} />
+        </span>
       </div>
 
       <style>{cardCss}</style>
@@ -187,6 +186,6 @@ const cardCss = `
     font-size: 10px; color: var(--cm-text-tertiary);
     font-family: 'Geist Mono', ui-monospace, monospace; letter-spacing: 0.3px;
   }
-  .star { font-size: 14px; color: var(--cm-accent); }
+  .star { display: inline-flex; color: var(--cm-accent); }
   .star.empty { color: var(--cm-text-tertiary); }
 `;

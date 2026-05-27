@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { CornerDownLeft } from 'lucide-react';
 import type { ClipDto } from '../../../electron/ipc-types';
 
 export function EditPane({
@@ -65,7 +66,7 @@ export function EditPane({
         <button type="button" className="cancel" onClick={onCancel}>Cancel</button>
         <button type="button" className="save" onClick={() => save(false)}>Save</button>
         <button type="button" className="save-paste" onClick={() => save(true)}>
-          Save &amp; Paste · Ctrl+↵
+          Save & Paste · Ctrl+<CornerDownLeft size={11} strokeWidth={2.2} style={{ verticalAlign: '-2px' }} />
         </button>
       </div>
       <style>{editCss}</style>

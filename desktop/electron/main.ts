@@ -226,6 +226,9 @@ app.whenReady().then(() => {
     onConnStateChange: (state, deviceName) => {
       mainWindow?.webContents.send(IPC.EVT_CONN_STATE, { state, deviceName });
     },
+    onRemoteClipInserted: (id) => {
+      mainWindow?.webContents.send(IPC.EVT_CLIP_NEW, id);
+    },
   });
   syncService.start().catch((e) => console.warn('sync start failed', e));
 

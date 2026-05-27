@@ -1,3 +1,4 @@
+import { Star } from 'lucide-react';
 import type { ClipDto } from '../../../electron/ipc-types';
 import { relTime } from '../components/ClipCard';
 
@@ -57,7 +58,9 @@ export function LayoutSectioned({
                 {c.contentType.toUpperCase()}
               </span>
               <span className="text">{previewText(c)}</span>
-              {c.isFavorite && <span className="star">★</span>}
+              {c.isFavorite && (
+                <span className="star"><Star size={11} strokeWidth={2} fill="currentColor" /></span>
+              )}
               <span className="time">{relTime(c.createdAt)}</span>
             </button>
           ))}

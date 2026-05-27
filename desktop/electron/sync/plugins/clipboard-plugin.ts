@@ -11,6 +11,8 @@ export interface ClipboardPluginDeps {
   isIncomingEnabled: () => boolean;
   /** Send an envelope back over the transport (set after wiring). */
   send: (env: Envelope) => Promise<void>;
+  /** Called after a remote clip is inserted into the local DB (for UI refresh). */
+  onRemoteClipInserted?: (clipId: number) => void;
 }
 
 const INLINE_LIMIT = 4096;
@@ -47,6 +49,40 @@ export class ClipboardPlugin {
     await this.deps.send(makeEnvelope('clipboard', TYPES.CLIP_NEW, payload));
   }
 
+  /** Send the most-recent text-shaped clips to a freshly connected peer. */
+  async sendHistory(limit = 50): Promise<void> {
+    if (!this.deps.isOutgoingEnabled()) return;
+    const rows = this.deps.db
+      .raw()
+      .prepare(
+        `SELECT content_type, content, mime, content_hash, preview
+           FROM clips
+          WHERE content_type IN ('text','link','code','color','emoji')
+            AND length(content) <= ?
+          ORDER BY created_at DESC
+          LIMIT ?`
+      )
+      .all(INLINE_LIMIT, limit) as Array<{
+        content_type: ContentType;
+        content: Buffer;
+        mime: string;
+        content_hash: string;
+        preview: string;
+      }>;
+    // Send oldest-first so the receiver's "most recent" ordering ends up right.
+    for (const row of rows.reverse()) {
+      await this.deps.send(
+        makeEnvelope('clipboard', TYPES.CLIP_NEW, {
+          kind: row.content_type,
+          mime: row.mime,
+          preview: (row.preview ?? '').slice(0, 280),
+          hash: row.content_hash,
+          content_inline: bytesToB64(new Uint8Array(row.content)),
+        })
+      );
+    }
+  }
+
   /** Called by the dispatcher when an envelope arrives from the peer. */
   async handle(env: Envelope): Promise<void> {
     if (!this.deps.isIncomingEnabled()) return;
@@ -62,7 +98,7 @@ export class ClipboardPlugin {
       } catch {
         return;
       }
-      this.deps.db.insertClip(
+      const { id, wasNew } = this.deps.db.insertClip(
         kind,
         Buffer.from(bytes),
         mime,
@@ -70,6 +106,7 @@ export class ClipboardPlugin {
         'from phone',
         Date.now()
       );
+      if (wasNew) this.deps.onRemoteClipInserted?.(id);
     }
   }
 }

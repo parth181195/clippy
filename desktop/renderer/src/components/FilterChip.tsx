@@ -1,13 +1,15 @@
+import type { ReactNode } from 'react';
+
 export function FilterChip({
   label,
   active = false,
-  icon = '',
+  icon,
   count = null,
   onClick,
 }: {
   label: string;
   active?: boolean;
-  icon?: string;
+  icon?: ReactNode;
   count?: number | null;
   onClick: () => void;
 }) {
@@ -34,6 +36,7 @@ const chipCss = `
     background: var(--cm-surface-raised); color: var(--cm-text);
     border-color: var(--cm-border-strong);
   }
+  .chip .icon { display: inline-flex; align-items: center; }
   .chip .count {
     font-size: 10px; color: var(--cm-text-tertiary);
     font-family: 'Geist Mono', ui-monospace, monospace;

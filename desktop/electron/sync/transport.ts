@@ -54,11 +54,14 @@ export class LanWebSocketServer implements SyncTransport {
     log(`ws server listening on :${this.port}`);
     this.wss.on('connection', (ws, req) => {
       const peerAddr = req.socket.remoteAddress ?? 'unknown';
-      log(`peer connected: ${peerAddr}`);
-      // Single-peer for v1 — newest connection wins.
-      if (this.peer) {
-        try { this.peer.close(); } catch {}
+      // If an active peer exists, refuse the new one — prevents reconnect storms
+      // from killing a live connection. Existing peer's TCP will time out naturally.
+      if (this.peer && this.peer.readyState === WebSocket.OPEN) {
+        log(`peer ${peerAddr} refused — active peer already connected`);
+        try { ws.close(1013, 'busy'); } catch {}
+        return;
       }
+      log(`peer connected: ${peerAddr}`);
       this.peer = ws;
       this.events.onConnect(peerAddr);
 

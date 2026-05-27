@@ -60,7 +60,7 @@ export function LayoutSpotlight({
           >
             {selected.contentType.toUpperCase()}
           </span>
-          <span className="hint">↵ paste</span>
+          <span className="hint"><CornerDownLeft size={11} strokeWidth={2.2} /> paste</span>
         </div>
         <div className="focus-content">{body}</div>
         <div className="meta">

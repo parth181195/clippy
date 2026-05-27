@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useSettingsStore } from '../lib/store';
 import type { Settings } from '../../../electron/ipc-types';
+import { Switch } from './Switch';
 
 type Section = 'general' | 'hotkeys' | 'exclusions' | 'layout' | 'actions' | 'about';
 
@@ -81,39 +82,19 @@ function General({
     <>
       <h3>General</h3>
       <Row label="Sound on copy">
-        <input
-          type="checkbox"
-          checked={s.soundOnCopy}
-          onChange={(e) => save({ soundOnCopy: e.target.checked })}
-        />
+        <Switch checked={s.soundOnCopy} onCheckedChange={(v) => save({ soundOnCopy: v })} />
       </Row>
       <Row label="Notifications on copy">
-        <input
-          type="checkbox"
-          checked={s.notificationsOnCopy}
-          onChange={(e) => save({ notificationsOnCopy: e.target.checked })}
-        />
+        <Switch checked={s.notificationsOnCopy} onCheckedChange={(v) => save({ notificationsOnCopy: v })} />
       </Row>
       <Row label="Link previews (network egress on view)">
-        <input
-          type="checkbox"
-          checked={s.linkPreviewsEnabled}
-          onChange={(e) => save({ linkPreviewsEnabled: e.target.checked })}
-        />
+        <Switch checked={s.linkPreviewsEnabled} onCheckedChange={(v) => save({ linkPreviewsEnabled: v })} />
       </Row>
       <Row label="Auto-sync outgoing (text-shaped → phone)">
-        <input
-          type="checkbox"
-          checked={s.autoSyncOutgoing}
-          onChange={(e) => save({ autoSyncOutgoing: e.target.checked })}
-        />
+        <Switch checked={s.autoSyncOutgoing} onCheckedChange={(v) => save({ autoSyncOutgoing: v })} />
       </Row>
       <Row label="Auto-sync incoming (text-shaped ← phone)">
-        <input
-          type="checkbox"
-          checked={s.autoSyncIncoming}
-          onChange={(e) => save({ autoSyncIncoming: e.target.checked })}
-        />
+        <Switch checked={s.autoSyncIncoming} onCheckedChange={(v) => save({ autoSyncIncoming: v })} />
       </Row>
       <Row label="History size">
         <input
@@ -192,11 +173,7 @@ function Layout({ s, save }: { s: Settings; save: (patch: Partial<Settings>) => 
         </div>
       </Row>
       <Row label="Window transparency">
-        <input
-          type="checkbox"
-          checked={s.windowTransparent}
-          onChange={(e) => save({ windowTransparent: e.target.checked })}
-        />
+        <Switch checked={s.windowTransparent} onCheckedChange={(v) => save({ windowTransparent: v })} />
       </Row>
     </>
   );

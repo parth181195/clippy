@@ -29,6 +29,7 @@ export interface SyncServiceDeps {
   onConnStateChange?: (state: ConnState, deviceName: string | null) => void;
   isOutgoingEnabled: () => boolean;
   isIncomingEnabled: () => boolean;
+  onRemoteClipInserted?: (clipId: number) => void;
 }
 
 export class SyncService {
@@ -41,6 +42,7 @@ export class SyncService {
   private deviceId: string | null = null;
   private pendingPsk: Uint8Array | null = null; // PSK held during pairing flow
   private pendingPubkey: Uint8Array | null = null;
+  private backfilledDevices = new Set<string>();
 
   constructor(deps: SyncServiceDeps) {
     this.deps = deps;
@@ -149,6 +151,10 @@ export class SyncService {
       isOutgoingEnabled: this.deps.isOutgoingEnabled,
       isIncomingEnabled: this.deps.isIncomingEnabled,
       send: (env) => transport.send(env),
+      onRemoteClipInserted: (id) => {
+        log(`remote clip inserted #${id}`);
+        this.deps.onRemoteClipInserted?.(id);
+      },
     });
     this.mdns = new MdnsAdvertise();
     this.mdns.start({
@@ -186,6 +192,12 @@ export class SyncService {
       this.deviceId = deviceId;
       this.setState('connected', name);
       await this.transport?.send(makeEnvelope('core', TYPES.ACK, { ref_id: env.id }));
+      // Backfill recent history exactly once per device per process — prevents
+      // re-sending the full history on every reconnect.
+      if (!this.backfilledDevices.has(deviceId)) {
+        this.backfilledDevices.add(deviceId);
+        this.clipPlugin?.sendHistory().catch((e) => log(`sendHistory: ${e}`));
+      }
       return;
     }
     if (env.plugin === 'clipboard') {

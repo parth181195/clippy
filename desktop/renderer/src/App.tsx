@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { ArrowLeft, ArrowRight, CornerDownLeft, Delete, Settings as SettingsIcon, Star } from 'lucide-react';
 import { PanelLayout } from './components/PanelLayout';
 import { SearchBar, type SearchBarHandle } from './components/SearchBar';
 import { FilterChip } from './components/FilterChip';
@@ -44,9 +45,12 @@ export function App() {
       const first = useClipsStore.getState().clips[0];
       if (first && !useSelectionStore.getState().hash) setByHash(first.hash);
     });
-    // Subscribe to clip-new events from main
+    // Subscribe to clip-new events from main — snap selection to newest.
     const offClip = window.clippy.onClipNew(() => {
-      void refresh(filter.search, filter.type, filter.favoritesOnly);
+      void refresh(filter.search, filter.type, filter.favoritesOnly).then(() => {
+        const first = useClipsStore.getState().clips[0];
+        if (first) setByHash(first.hash);
+      });
     });
     // Hydrate + subscribe to connection-state events
     void window.clippy.pairingState().then(setConn);
@@ -167,7 +171,18 @@ export function App() {
   return (
     <div className="panel">
       <header>
-        <span className="brand">Clippy</span>
+        {mode !== 'list' && (
+          <button
+            className="back-btn"
+            onClick={() => { setMode('list'); setEditingId(null); }}
+            aria-label="Back"
+            title="Back (Esc)"
+            type="button"
+          >
+            <ArrowLeft size={16} strokeWidth={2} />
+          </button>
+        )}
+        <span className="brand">Clippy{mode !== 'list' && ` · ${mode === 'pair' ? 'Pair device' : mode === 'settings' ? 'Settings' : 'Edit'}`}</span>
         <SearchBar
           ref={searchRef}
           value={filter.search}
@@ -184,7 +199,7 @@ export function App() {
           />
           <FilterChip
             label="Favorites"
-            icon="★"
+            icon={<Star size={12} strokeWidth={2} fill={filter.favoritesOnly ? 'currentColor' : 'none'} />}
             active={filter.favoritesOnly}
             onClick={() => filter.setFavoritesOnly(!filter.favoritesOnly)}
           />
@@ -203,7 +218,7 @@ export function App() {
           aria-label="Settings"
           type="button"
         >
-          ⚙
+          <SettingsIcon size={16} strokeWidth={2} />
         </button>
       </header>
       <main>
@@ -249,7 +264,12 @@ export function App() {
         <ConnIndicator conn={conn} onPair={() => setMode('pair')} />
         <span className="spacer" />
         <span className="hints">
-          ↵ paste · ⌫ delete · type to search · Ctrl+Alt+Shift+V open · Ctrl+Alt+V paste-last
+          <CornerDownLeft size={10} strokeWidth={2.2} /> paste
+          <span className="dot">·</span>
+          <Delete size={11} strokeWidth={2.2} /> delete
+          <span className="dot">·</span> type to search
+          <span className="dot">·</span> Ctrl+Alt+Shift+V open
+          <span className="dot">·</span> Ctrl+Alt+V paste-last
         </span>
       </footer>
       <style>{shellCss}</style>
@@ -262,7 +282,7 @@ function ConnIndicator({ conn, onPair }: { conn: ConnStatus; onPair: () => void 
     return (
       <span className="conn">
         No device paired ·{' '}
-        <a className="pair-link" onClick={onPair}>Pair phone →</a>
+        <a className="pair-link" onClick={onPair}>Pair phone <ArrowRight size={11} strokeWidth={2.2} /></a>
       </span>
     );
   }
@@ -294,11 +314,15 @@ const shellCss = `
   header .chips {
     display: flex; gap: 6px; flex: 1; overflow: hidden; min-width: 0; align-items: center;
   }
-  .settings-btn {
+  .settings-btn, .back-btn {
     width: 32px; height: 32px; border-radius: 8px;
     background: transparent; border: none;
     color: var(--cm-text-secondary); cursor: pointer; font-size: 16px;
+    display: inline-flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
   }
+  .settings-btn:hover, .back-btn:hover { background: var(--cm-surface-raised); color: var(--cm-text); }
+  .back-btn { font-size: 18px; }
   main { flex: 1; min-height: 0; position: relative; }
   footer {
     height: 28px; padding: 0 20px; display: flex; align-items: center; gap: 10px;
@@ -309,7 +333,9 @@ const shellCss = `
   }
   footer .dot { opacity: .5; }
   footer .spacer { flex: 1; }
-  footer .hints { opacity: .7; }
+  footer .hints { opacity: .7; display: inline-flex; align-items: center; gap: 4px; }
+  footer .hints svg { vertical-align: -1px; }
+  footer .pair-link svg { vertical-align: -1px; }
   footer .conn { display: inline-flex; align-items: center; gap: 6px; }
   footer .conn .dot.live {
     width: 6px; height: 6px; border-radius: 3px;
