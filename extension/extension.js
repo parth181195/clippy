@@ -7,6 +7,8 @@ import St from 'gi://St';
 import Gio from 'gi://Gio';
 import Clutter from 'gi://Clutter';
 
+import Shell from 'gi://Shell';
+
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
@@ -117,13 +119,50 @@ class ClippyIndicator extends PanelMenu.Button {
   }
 });
 
+// Pushes the currently-focused app id to Clippy via D-Bus on every focus change.
+// This is the Wayland-friendly source-app capture path (xdotool can't see
+// Wayland windows). Best-effort: dropped silently if Clippy isn't running.
+class FocusedAppPusher {
+  constructor() {
+    const tracker = Shell.WindowTracker.get_default();
+    this._tracker = tracker;
+    this._lastAppId = '';
+    this._focusHandler = tracker.connect('notify::focus-app', () => this._onFocusChanged());
+    this._onFocusChanged();
+  }
+
+  _onFocusChanged() {
+    const app = this._tracker.focus_app;
+    const id = app ? (app.get_id() || '').replace(/\.desktop$/, '') : '';
+    if (id === this._lastAppId) return;
+    this._lastAppId = id;
+    Gio.DBus.session.call(
+      CLIPPY_DBUS_NAME, CLIPPY_DBUS_PATH, CLIPPY_DBUS_IFACE,
+      'SetFocusedApp',
+      new GLib.Variant('(s)', [id]),
+      null, Gio.DBusCallFlags.NONE, 1000, null,
+      (b, res) => { try { b.call_finish(res); } catch (_) {} }
+    );
+  }
+
+  destroy() {
+    if (this._focusHandler && this._tracker) {
+      this._tracker.disconnect(this._focusHandler);
+      this._focusHandler = null;
+    }
+  }
+}
+
 export default class ClippyExtension extends Extension {
   enable() {
     this._indicator = new ClippyIndicator(this);
     Main.panel.addToStatusArea(this.uuid, this._indicator);
+    this._focusPusher = new FocusedAppPusher();
   }
 
   disable() {
+    this._focusPusher?.destroy();
+    this._focusPusher = null;
     this._indicator?.destroy();
     this._indicator = null;
   }

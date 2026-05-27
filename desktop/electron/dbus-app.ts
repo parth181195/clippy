@@ -26,6 +26,7 @@ class ClippyAppInterface extends dbus.interface.Interface {
   Hide(): void { this.handlers.onHide(); log('Hide called'); }
   PasteLast(): void { this.handlers.onPasteLast(); log('PasteLast called'); }
   ToggleIncognito(): void { this.handlers.onToggleIncognito(); log('ToggleIncognito called'); }
+  SetFocusedApp(appId: string): void { this.handlers.onSetFocusedApp(appId); }
 }
 
 ClippyAppInterface.configureMembers({
@@ -35,6 +36,7 @@ ClippyAppInterface.configureMembers({
     Hide:             { inSignature: '', outSignature: '' },
     PasteLast:        { inSignature: '', outSignature: '' },
     ToggleIncognito:  { inSignature: '', outSignature: '' },
+    SetFocusedApp:    { inSignature: 's', outSignature: '' },
   },
 });
 
@@ -44,6 +46,7 @@ export interface AppHandlers {
   onHide: () => void;
   onPasteLast: () => void;
   onToggleIncognito: () => void;
+  onSetFocusedApp: (appId: string) => void;
 }
 
 export async function startDbusApp(handlers: AppHandlers): Promise<void> {

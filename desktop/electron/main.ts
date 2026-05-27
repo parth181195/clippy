@@ -11,7 +11,7 @@ import { pasteToActive } from './paste';
 import { SoundPlayer } from './sound';
 import { Notifier } from './notifications';
 import { Incognito } from './incognito';
-import { currentFocusedApp } from './focused-app';
+import { currentFocusedApp, setFocusedAppFromShell } from './focused-app';
 import { startDbusApp } from './dbus-app';
 import { installAll as installGnomeShortcuts } from './gnome-shortcut';
 import { SyncService } from './sync/sync-service';
@@ -331,6 +331,7 @@ app.whenReady().then(() => {
     onHide: () => mainWindow?.hide(),
     onPasteLast: () => doPasteLast(),
     onToggleIncognito: () => incognito?.toggle(),
+    onSetFocusedApp: (appId) => setFocusedAppFromShell(appId),
   });
   // Install / refresh all GNOME custom keybindings so user's hotkeys actually
   // fire on Wayland. Idempotent on every startup, and re-called from the
