@@ -28,7 +28,7 @@
   --cm-text-secondary: #9999A8;
   --cm-text-tertiary: #5C5C6B;
   --cm-warn: #A55C5C;
-  --cm-panel-scrim: rgba(22, 22, 31, 0.85);
+  --cm-panel-scrim: rgba(22, 22, 31, 0.97);
 
   --badge-text-bg:  rgba(153,153,168,.10);  --badge-text-fg:  #B0B0BE;
   --badge-link-bg:  rgba(124,156,255,.13);  --badge-link-fg:  #A6B7EA;
@@ -51,7 +51,7 @@
   --cm-text-secondary: #5C5C6B;
   --cm-text-tertiary: #9999A8;
   --cm-warn: #B86A6A;
-  --cm-panel-scrim: rgba(245, 245, 250, 0.88);
+  --cm-panel-scrim: rgba(245, 245, 250, 0.97);
 
   --badge-text-bg:  #ECECF1;  --badge-text-fg:  #5C5C6B;
   --badge-link-bg:  #E8EEFB;  --badge-link-fg:  #3F5DAB;

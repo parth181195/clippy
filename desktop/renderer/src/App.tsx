@@ -199,7 +199,11 @@ export function App() {
       } else if (e.key === 'e' || e.key === 'E') {
         e.preventDefault();
         openEditor();
-      } else if (/^[\w !@#$%^&*()\-=+[\]{};:'",.<>/?]$/.test(e.key)) {
+      } else if (e.key === '/') {
+        // `/` is a focus shortcut (Slack/GitHub style) — don't actually type it.
+        e.preventDefault();
+        searchRef.current?.focus();
+      } else if (/^[\w !@#$%^&*()\-=+[\]{};:'",.<>?]$/.test(e.key)) {
         searchRef.current?.focus();
       }
     }
