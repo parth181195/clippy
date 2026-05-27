@@ -76,6 +76,63 @@ class _RecentScreenState extends State<RecentScreen> {
     _load();
   }
 
+  Future<void> _toggleFavorite(Map<String, Object?> row) async {
+    final svc = await DbService.instance();
+    final cur = (row['is_favorite'] as int?) ?? 0;
+    await svc.db.update('clips', {'is_favorite': cur == 0 ? 1 : 0},
+        where: 'id = ?', whereArgs: [row['id']]);
+    _load();
+  }
+
+  Future<void> _togglePin(Map<String, Object?> row) async {
+    final svc = await DbService.instance();
+    final cur = (row['is_pinned'] as int?) ?? 0;
+    await svc.db.update('clips', {'is_pinned': cur == 0 ? 1 : 0},
+        where: 'id = ?', whereArgs: [row['id']]);
+    _load();
+  }
+
+  void _openSheet(Map<String, Object?> row) {
+    final isFav = (row['is_favorite'] as int?) == 1;
+    final isPin = (row['is_pinned'] as int?) == 1;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: ClippyTokens.surfaceRaisedDark,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.copy_outlined),
+                title: const Text('Copy'),
+                onTap: () { Navigator.pop(ctx); _copy(row); },
+              ),
+              ListTile(
+                leading: Icon(isFav ? Icons.star : Icons.star_border, color: ClippyTokens.accent),
+                title: Text(isFav ? 'Unfavorite' : 'Favorite'),
+                onTap: () { Navigator.pop(ctx); _toggleFavorite(row); },
+              ),
+              ListTile(
+                leading: Icon(isPin ? Icons.push_pin : Icons.push_pin_outlined, color: ClippyTokens.accent),
+                title: Text(isPin ? 'Unpin' : 'Pin'),
+                onTap: () { Navigator.pop(ctx); _togglePin(row); },
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                title: const Text('Delete', style: TextStyle(color: Colors.redAccent)),
+                onTap: () { Navigator.pop(ctx); _delete(row); },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   List<Map<String, Object?>> get _filtered {
     final q = _query.trim().toLowerCase();
     if (q.isEmpty) return _clips;
@@ -136,6 +193,7 @@ class _RecentScreenState extends State<RecentScreen> {
             row: row,
             bytes: _bytesByIdFor(row),
             onTap: () => _copy(row),
+            onLongPress: () => _openSheet(row),
           ),
         );
       },
@@ -190,7 +248,8 @@ class _ClipRow extends StatelessWidget {
   final Map<String, Object?> row;
   final Uint8List? bytes;
   final VoidCallback onTap;
-  const _ClipRow({required this.row, required this.bytes, required this.onTap});
+  final VoidCallback onLongPress;
+  const _ClipRow({required this.row, required this.bytes, required this.onTap, required this.onLongPress});
 
   String _relTime(int ms) {
     final d = DateTime.now().millisecondsSinceEpoch - ms;
@@ -262,6 +321,7 @@ class _ClipRow extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
