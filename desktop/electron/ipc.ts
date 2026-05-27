@@ -1,0 +1,188 @@
+import { ipcMain } from 'electron';
+import type { Db } from './db.js';
+import {
+  DEFAULT_SETTINGS,
+  IPC,
+  type ClipDto,
+  type ListClipsArgs,
+  type Settings,
+} from './ipc-types.js';
+
+// Convert snake_case DB row → camelCase DTO for the renderer.
+function rowToDto(r: any): ClipDto {
+  return {
+    id: r.id,
+    contentType: r.content_type,
+    mime: r.mime,
+    hash: r.content_hash,
+    preview: r.preview,
+    sourceApp: r.source_app,
+    isFavorite: r.is_favorite === 1,
+    isPinned: r.is_pinned === 1,
+    createdAt: r.created_at,
+  };
+}
+
+export function registerIpc(opts: {
+  db: Db;
+  onPaste: (id: number, shiftForTerminal: boolean) => Promise<void>;
+  onHidePanel: () => void;
+  onShowPanel: () => void;
+  onTogglePanel: () => void;
+}): void {
+  const { db, onPaste, onHidePanel, onShowPanel, onTogglePanel } = opts;
+  const raw = db.raw();
+
+  ipcMain.handle(IPC.listClips, (_e, args: ListClipsArgs = {}): ClipDto[] => {
+    const params: any[] = [];
+    let sql = `SELECT id, content_type, mime, content_hash, preview, source_app, is_favorite, is_pinned, created_at
+               FROM clips WHERE 1=1`;
+    if (args.search && args.search.length > 0) {
+      sql += ` AND id IN (SELECT rowid FROM clips_fts WHERE clips_fts MATCH ?)`;
+      params.push(`${args.search}*`);
+    }
+    if (args.contentTypeFilter) {
+      sql += ` AND content_type = ?`;
+      params.push(args.contentTypeFilter);
+    }
+    if (args.favoritesOnly) sql += ` AND is_favorite = 1`;
+    sql += ` ORDER BY is_pinned DESC, is_favorite DESC, created_at DESC LIMIT ?`;
+    params.push(args.limit ?? 500);
+    return (raw.prepare(sql).all(...params) as any[]).map(rowToDto);
+  });
+
+  ipcMain.handle(IPC.getClipContent, (_e, id: number, mime?: string): Buffer => {
+    if (mime) {
+      const row = raw
+        .prepare('SELECT content FROM clip_representations WHERE clip_id = ? AND mime = ?')
+        .get(id, mime) as { content: Buffer } | undefined;
+      if (row) return row.content;
+    }
+    const row = raw.prepare('SELECT content FROM clips WHERE id = ?').get(id) as
+      | { content: Buffer }
+      | undefined;
+    return row?.content ?? Buffer.alloc(0);
+  });
+
+  ipcMain.handle(IPC.getThumbnail, (_e, id: number): Buffer | null => db.thumbnailFor(id));
+
+  ipcMain.handle(IPC.toggleFavorite, (_e, id: number): boolean => {
+    raw.prepare('UPDATE clips SET is_favorite = 1 - is_favorite WHERE id = ?').run(id);
+    return (
+      (raw.prepare('SELECT is_favorite FROM clips WHERE id = ?').get(id) as { is_favorite: number })
+        .is_favorite === 1
+    );
+  });
+
+  ipcMain.handle(IPC.togglePin, (_e, id: number): boolean => {
+    raw.prepare('UPDATE clips SET is_pinned = 1 - is_pinned WHERE id = ?').run(id);
+    return (
+      (raw.prepare('SELECT is_pinned FROM clips WHERE id = ?').get(id) as { is_pinned: number })
+        .is_pinned === 1
+    );
+  });
+
+  ipcMain.handle(IPC.deleteClip, (_e, id: number, force: boolean): void => {
+    if (!force) {
+      const row = raw
+        .prepare('SELECT is_pinned, is_favorite FROM clips WHERE id = ?')
+        .get(id) as { is_pinned: number; is_favorite: number } | undefined;
+      if (!row) return;
+      if (row.is_pinned === 1 || row.is_favorite === 1) {
+        throw new Error('clip is pinned or favorited; pass force=true');
+      }
+    }
+    raw.prepare('DELETE FROM clips WHERE id = ?').run(id);
+  });
+
+  ipcMain.handle(IPC.saveEditedClip, (_e, originalId: number, newContent: string): number => {
+    const row = raw
+      .prepare('SELECT content_type, mime FROM clips WHERE id = ?')
+      .get(originalId) as { content_type: string; mime: string } | undefined;
+    if (!row) throw new Error('original clip not found');
+    if (!['text', 'link', 'code', 'color', 'emoji'].includes(row.content_type)) {
+      throw new Error('not editable type');
+    }
+    const preview = newContent.slice(0, 280);
+    const inserted = db.insertClip(
+      row.content_type as any,
+      Buffer.from(newContent, 'utf8'),
+      row.mime,
+      preview,
+      'Clippy (edited)',
+      Date.now()
+    );
+    return inserted.id;
+  });
+
+  ipcMain.handle(IPC.pasteById, async (_e, id: number, shiftForTerminal: boolean): Promise<void> => {
+    await onPaste(id, shiftForTerminal);
+  });
+
+  ipcMain.handle(IPC.loadSettings, (): Settings => {
+    const out: Settings = { ...DEFAULT_SETTINGS };
+    const rows = raw.prepare('SELECT key, value FROM settings').all() as Array<{
+      key: string;
+      value: string;
+    }>;
+    for (const { key, value } of rows) applySetting(out, key, value);
+    return out;
+  });
+
+  ipcMain.handle(IPC.saveSettings, (_e, s: Settings): void => {
+    const upsert = raw.prepare('INSERT OR REPLACE INTO settings(key, value) VALUES (?, ?)');
+    const pairs: Array<[string, string]> = [
+      ['theme', s.theme],
+      ['layout', s.layout],
+      ['density', s.density],
+      ['accent', s.accent],
+      ['panel_position', s.panelPosition],
+      ['hotkey_panel', s.hotkeyPanel],
+      ['hotkey_paste_last', s.hotkeyPasteLast],
+      ['hotkey_incognito', s.hotkeyIncognito],
+      ['history_size', String(s.historySize)],
+      ['polling_ms', String(s.pollingMs)],
+      ['sound_on_copy', String(s.soundOnCopy)],
+      ['notifications_on_copy', String(s.notificationsOnCopy)],
+      ['link_previews_enabled', String(s.linkPreviewsEnabled)],
+      ['auto_sync_outgoing', String(s.autoSyncOutgoing)],
+      ['auto_sync_incoming', String(s.autoSyncIncoming)],
+      ['incognito_auto_disable_secs', String(s.incognitoAutoDisableSecs)],
+      ['autostart', String(s.autostart)],
+      ['window_transparent', String(s.windowTransparent)],
+    ];
+    const tx = raw.transaction((rows: Array<[string, string]>) => {
+      for (const [k, v] of rows) upsert.run(k, v);
+    });
+    tx(pairs);
+  });
+
+  ipcMain.handle(IPC.hidePanel, () => onHidePanel());
+  ipcMain.handle(IPC.showPanel, () => onShowPanel());
+  ipcMain.handle(IPC.togglePanel, () => onTogglePanel());
+}
+
+function applySetting(s: Settings, key: string, value: string): void {
+  switch (key) {
+    case 'theme': s.theme = value; break;
+    case 'layout': s.layout = value; break;
+    case 'density': s.density = value; break;
+    case 'accent': s.accent = value; break;
+    case 'panel_position': s.panelPosition = value; break;
+    case 'hotkey_panel': s.hotkeyPanel = value; break;
+    case 'hotkey_paste_last': s.hotkeyPasteLast = value; break;
+    case 'hotkey_incognito': s.hotkeyIncognito = value; break;
+    case 'history_size': s.historySize = parseInt(value, 10) || s.historySize; break;
+    case 'polling_ms': s.pollingMs = parseInt(value, 10) || s.pollingMs; break;
+    case 'sound_on_copy': s.soundOnCopy = value === 'true'; break;
+    case 'notifications_on_copy': s.notificationsOnCopy = value === 'true'; break;
+    case 'link_previews_enabled': s.linkPreviewsEnabled = value === 'true'; break;
+    case 'auto_sync_outgoing': s.autoSyncOutgoing = value === 'true'; break;
+    case 'auto_sync_incoming': s.autoSyncIncoming = value === 'true'; break;
+    case 'incognito_auto_disable_secs':
+      s.incognitoAutoDisableSecs = parseInt(value, 10) || s.incognitoAutoDisableSecs;
+      break;
+    case 'autostart': s.autostart = value === 'true'; break;
+    case 'window_transparent': s.windowTransparent = value === 'true'; break;
+  }
+}
