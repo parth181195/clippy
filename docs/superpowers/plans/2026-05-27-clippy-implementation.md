@@ -144,14 +144,15 @@ Run:
 ```bash
 mkdir -p desktop/assets/fonts
 cd desktop/assets/fonts
-# Geist v1.4.x as of 2026-05; static WOFF2 weights
-curl -L -O https://github.com/vercel/geist-font/raw/main/fonts/Geist/Geist-Regular.woff2
-curl -L -O https://github.com/vercel/geist-font/raw/main/fonts/Geist/Geist-Medium.woff2
-curl -L -O https://github.com/vercel/geist-font/raw/main/fonts/Geist/Geist-SemiBold.woff2
-curl -L -O https://github.com/vercel/geist-font/raw/main/fonts/Geist/Geist-Bold.woff2
-curl -L -O https://github.com/vercel/geist-font/raw/main/fonts/GeistMono/GeistMono-Regular.woff2
-curl -L -O https://github.com/vercel/geist-font/raw/main/fonts/GeistMono/GeistMono-Medium.woff2
-curl -L -o LICENSE https://github.com/vercel/geist-font/raw/main/LICENSE.TXT
+# Geist; WOFF2s live under fonts/<family>/webfonts/ in the upstream repo
+BASE="https://raw.githubusercontent.com/vercel/geist-font/main/fonts"
+for w in Regular Medium SemiBold Bold; do
+  curl -L -O "$BASE/Geist/webfonts/Geist-${w}.woff2"
+done
+for w in Regular Medium; do
+  curl -L -O "$BASE/GeistMono/webfonts/GeistMono-${w}.woff2"
+done
+curl -L -o LICENSE "https://raw.githubusercontent.com/vercel/geist-font/main/LICENSE.txt"
 cd -
 ```
 
