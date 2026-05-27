@@ -40,7 +40,7 @@ class _RecentScreenState extends State<RecentScreen> {
 
   Future<void> _load() async {
     final svc = await DbService.instance();
-    final rows = await svc.db.query('clips', orderBy: 'created_at DESC', limit: 200);
+    final rows = await svc.db.query('clips', orderBy: 'is_pinned DESC, created_at DESC', limit: 200);
     final currentIds = <int>{};
     for (final r in rows) {
       final id = r['id'] as int;
@@ -316,6 +316,7 @@ class _ClipRow extends StatelessWidget {
     final createdAt = (row['created_at'] as int?) ?? 0;
     final fromDesktop = source.toLowerCase().contains('desktop');
     final isFavorite = (row['is_favorite'] as int?) == 1;
+    final isPinned = (row['is_pinned'] as int?) == 1;
     final badge = _badge(type);
     final mono = const TextStyle(fontFamily: 'monospace');
 
@@ -358,6 +359,10 @@ class _ClipRow extends StatelessWidget {
                       if (isFavorite) ...[
                         const SizedBox(width: 6),
                         Icon(Icons.star, size: 11, color: ClippyTokens.accent),
+                      ],
+                      if (isPinned) ...[
+                        const SizedBox(width: 4),
+                        Icon(Icons.push_pin, size: 11, color: ClippyTokens.accent),
                       ],
                     ],
                   ),
