@@ -10,21 +10,22 @@ Status: SPEC ONLY — implementation deferred.
 | Dark palette + tokens | ✅ | `tokens.ts` matches exactly |
 | Card sizes (compact / comfortable / spacious) | ✅ | width/height/pad/gap match |
 | Type badge (top-left, colored pill) | ✅ | Uses badge-{type}-bg/fg CSS vars |
-| Pinned coral stripe | ⚠️ | Code is in `ClipCard.tsx:74` but verify it paints when `isPinned=true` |
+| Pinned coral stripe | ✅ | renders when `clip.isPinned` |
 | Image thumbnail | ✅ | Fetches PNG bytes via IPC, decodes |
-| Color swatch | ⚠️ | Renders a flat hex bar; design has large swatch + hex + rgb |
+| Color swatch + hex + rgb | ✅ | Large swatch with top gloss, hex+rgb meta |
 | Emoji 64px | ✅ | |
-| Code (plain `<pre>`) | ❌ | Design has syntax highlighting (keywords/strings/comments) |
-| Link card with favicon + url + title | ❌ | We just dump `clip.preview` as text |
-| File glyph (paper sheet w/ extension badge) | ❌ | We dump filename as text |
-| Source-app icons (Chrome/Terminal/Figma/VSCode) | ❌ | Our pipeline doesn't capture source app reliably; would need GNOME shell hook or Wayland focused-window introspection |
-| Search bar `/` keyboard hint chip | ❌ | |
-| Filter chip counts (e.g. "Text 12") | ❌ | Currently just shows label |
-| Connection indicator with zap icon when paired | ❌ | We render a plain green dot |
-| Kbd component for footer hints | ⚠️ | We use inline Lucide CornerDownLeft + Delete; design has styled monospace key chips |
-| Settings: Devices section | ❌ | We have General/Hotkeys but no Devices view for pairing/unpair management |
-| Settings: Exclusions UI | ⚠️ | Header exists, body says "Editor lands in a follow-up" |
-| Filter transfer "circular progress" card variant | ❌ | We use a bottom-right banner; design uses a card-sized circular arc |
+| Code syntax highlighting | ✅ | Tiny tokenizer (keywords/strings/comments/numbers), bash vs JS heuristic |
+| Link card with favicon + host + url | ✅ | HSL-tinted initial favicon |
+| File glyph + extension badge | ✅ | SVG paper-sheet with PDF/ZIP/PNG/BIN badge |
+| Source-app icons | ✅ | GNOME extension pushes via SetFocusedApp D-Bus; cards render inline SVGs for known apps |
+| Search bar `/` keyboard hint chip | ✅ | |
+| Filter chip counts | ✅ | Hidden when 0 |
+| Connection indicator: Smartphone + Zap | ✅ | |
+| Kbd component for footer hints | ✅ | Geist Mono in subtle pills |
+| Settings: Devices section | ✅ | Live state dot + Unpair button |
+| Settings: Exclusions UI | ✅ | Chip-list editor (list/add/remove via new IPC) |
+| Filter transfer circular-progress card | ❌ | Deferred — bottom banner is sufficient |
+| Per-type Actions editor | ❌ | Still stubbed |
 
 ## Implementation order (when picked up later)
 
