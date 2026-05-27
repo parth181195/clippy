@@ -229,6 +229,9 @@ app.whenReady().then(() => {
     onRemoteClipInserted: (id) => {
       mainWindow?.webContents.send(IPC.EVT_CLIP_NEW, id);
     },
+    onTransferProgress: (p) => {
+      mainWindow?.webContents.send(IPC.EVT_TRANSFER_PROGRESS, p);
+    },
   });
   syncService.start().catch((e) => console.warn('sync start failed', e));
 
@@ -257,6 +260,7 @@ app.whenReady().then(() => {
       state: syncService?.state_() ?? 'unpaired',
       deviceName: syncService?.pairedDeviceName() ?? null,
     }),
+    onSendClipToPeer: async (clipId) => (await syncService?.sendClipToPeer(clipId)) ?? null,
   });
 
   if (settings.autostart) installAutostart();

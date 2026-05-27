@@ -34,9 +34,10 @@ export function registerIpc(opts: {
   onPairingCancel: () => void;
   onUnpair: () => Promise<void>;
   onPairingState: () => { state: string; deviceName: string | null };
+  onSendClipToPeer: (clipId: number) => Promise<string | null>;
 }): void {
   const { db, onPaste, onHidePanel, onShowPanel, onTogglePanel, onSettingsSaved,
-    onPairingBegin, onPairingCancel, onUnpair, onPairingState } = opts;
+    onPairingBegin, onPairingCancel, onUnpair, onPairingState, onSendClipToPeer } = opts;
   const raw = db.raw();
 
   ipcMain.handle(IPC.listClips, (_e, args: ListClipsArgs = {}): ClipDto[] => {
@@ -172,6 +173,7 @@ export function registerIpc(opts: {
   ipcMain.handle(IPC.pairingCancel, () => onPairingCancel());
   ipcMain.handle(IPC.unpair, () => onUnpair());
   ipcMain.handle(IPC.pairingState, () => onPairingState());
+  ipcMain.handle(IPC.sendClipToPeer, (_e, clipId: number) => onSendClipToPeer(clipId));
 }
 
 function applySetting(s: Settings, key: string, value: string): void {

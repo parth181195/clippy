@@ -4,6 +4,7 @@ import 'screens/send_screen.dart';
 import 'screens/settings_screen.dart';
 import 'services/sync_service.dart';
 import 'theme.dart';
+import 'widgets/transfer_banner.dart';
 
 class ClippyApp extends StatelessWidget {
   const ClippyApp({super.key});
@@ -66,7 +67,15 @@ class _HomeShellState extends State<HomeShell> {
         title: Text(_titles[_idx]),
         actions: [_connDot()],
       ),
-      body: _pages[_idx],
+      body: Stack(
+        children: [
+          _pages[_idx],
+          const Positioned(
+            left: 0, right: 0, bottom: 0,
+            child: SafeArea(child: TransferBanner()),
+          ),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         backgroundColor: ClippyTokens.surfaceSunkenDark,
         selectedIndex: _idx,

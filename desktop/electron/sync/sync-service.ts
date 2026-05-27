@@ -3,6 +3,7 @@ import type { ContentType } from '../ipc-types';
 import { initCrypto, generatePsk, generateIdentity, b64ToBytes, bytesToB64 } from './crypto';
 import { LanWebSocketServer } from './transport';
 import { ClipboardPlugin } from './plugins/clipboard-plugin';
+import { FileTransferPlugin, type TransferProgress } from './plugins/file-transfer-plugin';
 import { MdnsAdvertise } from './discovery';
 import { makePairingPayload, payloadToQrSvg, payloadToShortCode, type PairingPayload } from './pairing';
 import { makeEnvelope, type Envelope, TYPES } from './protocol';
@@ -30,6 +31,7 @@ export interface SyncServiceDeps {
   isOutgoingEnabled: () => boolean;
   isIncomingEnabled: () => boolean;
   onRemoteClipInserted?: (clipId: number) => void;
+  onTransferProgress?: (p: TransferProgress) => void;
 }
 
 export class SyncService {
@@ -37,6 +39,7 @@ export class SyncService {
   private transport: LanWebSocketServer | null = null;
   private mdns: MdnsAdvertise | null = null;
   private clipPlugin: ClipboardPlugin | null = null;
+  private filePlugin: FileTransferPlugin | null = null;
   private state: ConnState = 'unpaired';
   private deviceName: string | null = null;
   private deviceId: string | null = null;
@@ -156,6 +159,15 @@ export class SyncService {
         this.deps.onRemoteClipInserted?.(id);
       },
     });
+    this.filePlugin = new FileTransferPlugin({
+      db: this.deps.db,
+      send: (env) => transport.send(env),
+      onRemoteClipInserted: (id) => {
+        log(`remote file received → clip #${id}`);
+        this.deps.onRemoteClipInserted?.(id);
+      },
+      onProgress: (p) => this.deps.onTransferProgress?.(p),
+    });
     this.mdns = new MdnsAdvertise();
     this.mdns.start({
       name: this.deviceName ?? 'clippy-desktop',
@@ -203,6 +215,15 @@ export class SyncService {
     if (env.plugin === 'clipboard') {
       await this.clipPlugin?.handle(env);
     }
+    if (env.plugin === 'file_transfer') {
+      await this.filePlugin?.handle(env);
+    }
+  }
+
+  /** Send a clip's bytes to the paired peer (used for explicit image/file send). */
+  async sendClipToPeer(clipId: number): Promise<string | null> {
+    if (!this.filePlugin) return null;
+    return this.filePlugin.sendClip(clipId);
   }
 
   private loadPairedDevice(): { deviceId: string; name: string; psk: Uint8Array } | null {

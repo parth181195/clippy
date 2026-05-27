@@ -29,4 +29,15 @@ export const TYPES = {
   CLIP_NEW: 'CLIP_NEW',
   CLIP_REQUEST: 'CLIP_REQUEST',
   CLIP_LIST: 'CLIP_LIST',
+  // file_transfer plugin
+  FILE_OFFER: 'FILE_OFFER',
+  FILE_ACCEPT: 'FILE_ACCEPT',
+  FILE_CHUNK: 'FILE_CHUNK',
+  FILE_DONE: 'FILE_DONE',
+  FILE_CANCEL: 'FILE_CANCEL',
+} as const;
+
+export const FILE_TRANSFER = {
+  CHUNK_SIZE: 32 * 1024, // 32 KB raw per chunk; base64 framing ~43 KB
+  MAX_FILE_SIZE: 10 * 1024 * 1024, // 10 MB v1 cap (inline storage in clips.content)
 } as const;

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { IPC, type ClipDto, type ConnStatus, type ListClipsArgs, type PairingResult, type Settings } from './ipc-types';
+import { IPC, type ClipDto, type ConnStatus, type ListClipsArgs, type PairingResult, type Settings, type TransferProgressEvent } from './ipc-types';
 
 const api = {
   listClips: (args?: ListClipsArgs) => ipcRenderer.invoke(IPC.listClips, args ?? {}) as Promise<ClipDto[]>,
@@ -37,10 +37,17 @@ const api = {
   pairingCancel: () => ipcRenderer.invoke(IPC.pairingCancel) as Promise<void>,
   pairingState: () => ipcRenderer.invoke(IPC.pairingState) as Promise<ConnStatus>,
   unpair: () => ipcRenderer.invoke(IPC.unpair) as Promise<void>,
+  sendClipToPeer: (clipId: number) =>
+    ipcRenderer.invoke(IPC.sendClipToPeer, clipId) as Promise<string | null>,
   onConnState: (cb: (s: ConnStatus) => void) => {
     const h = (_e: any, s: ConnStatus) => cb(s);
     ipcRenderer.on(IPC.EVT_CONN_STATE, h);
     return () => ipcRenderer.off(IPC.EVT_CONN_STATE, h);
+  },
+  onTransferProgress: (cb: (p: TransferProgressEvent) => void) => {
+    const h = (_e: any, p: TransferProgressEvent) => cb(p);
+    ipcRenderer.on(IPC.EVT_TRANSFER_PROGRESS, h);
+    return () => ipcRenderer.off(IPC.EVT_TRANSFER_PROGRESS, h);
   },
 };
 

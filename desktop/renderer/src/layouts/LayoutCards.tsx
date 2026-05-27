@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { ClipCard, type Density } from '../components/ClipCard';
+import { ClipCard, type ClipCardActions, type Density } from '../components/ClipCard';
 import type { ClipDto } from '../../../electron/ipc-types';
 
 export function LayoutCards({
@@ -7,11 +7,15 @@ export function LayoutCards({
   selectedHash,
   density = 'comfortable',
   onSelect,
+  buildActions,
+  canSend,
 }: {
   clips: ClipDto[];
   selectedHash: string | null;
   density?: Density;
   onSelect: (hash: string) => void;
+  buildActions?: (clip: ClipDto) => ClipCardActions;
+  canSend?: (clip: ClipDto) => boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   function onWheel(e: React.WheelEvent<HTMLDivElement>) {
@@ -35,6 +39,8 @@ export function LayoutCards({
           density={density}
           state={c.hash === selectedHash ? 'selected' : 'default'}
           onSelect={() => onSelect(c.hash)}
+          actions={buildActions?.(c)}
+          canSend={canSend?.(c) ?? false}
         />
       ))}
       <style>{`

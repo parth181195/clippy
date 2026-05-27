@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -14,24 +15,43 @@ class RecentScreen extends StatefulWidget {
 
 class _RecentScreenState extends State<RecentScreen> {
   List<Map<String, Object?>> _clips = [];
+  final Map<int, Uint8List> _bytesById = {};
+  Timer? _debouncedLoad;
 
   @override
   void initState() {
     super.initState();
     _load();
-    SyncService.instance.addListener(_load);
+    SyncService.instance.addListener(_scheduleLoad);
   }
 
   @override
   void dispose() {
-    SyncService.instance.removeListener(_load);
+    SyncService.instance.removeListener(_scheduleLoad);
+    _debouncedLoad?.cancel();
     super.dispose();
+  }
+
+  void _scheduleLoad() {
+    _debouncedLoad?.cancel();
+    _debouncedLoad = Timer(const Duration(milliseconds: 300), _load);
   }
 
   Future<void> _load() async {
     final svc = await DbService.instance();
     final rows = await svc.db.query('clips', orderBy: 'created_at DESC', limit: 200);
-    debugPrint('[clippy] Recent._load: ${rows.length} rows, mounted=$mounted');
+    final currentIds = <int>{};
+    for (final r in rows) {
+      final id = r['id'] as int;
+      currentIds.add(id);
+      final raw = r['content'];
+      // sqflite returns _UnmodifiableUint8ArrayView; always copy so
+      // Image.memory gets a real Uint8List it can decode.
+      if (!_bytesById.containsKey(id) && raw is List<int>) {
+        _bytesById[id] = Uint8List.fromList(raw);
+      }
+    }
+    _bytesById.removeWhere((id, _) => !currentIds.contains(id));
     if (!mounted) return;
     setState(() => _clips = rows);
   }
@@ -70,6 +90,70 @@ class _RecentScreenState extends State<RecentScreen> {
         final row = _clips[i];
         final preview = row['preview']?.toString() ?? '';
         final source = row['source_app']?.toString() ?? '';
+        final type = row['content_type']?.toString() ?? 'text';
+        final id = row['id'] as int;
+        final raw = row['content'];
+        // Cache hit → stable bytes ref (no decode thrash). Miss → fall back
+        // to fresh-copy bytes so the row still renders this frame.
+        final bytes = _bytesById[id] ??
+            (raw is List<int> ? Uint8List.fromList(raw) : null);
+        if (type == 'image' && bytes != null && !_bytesById.containsKey(id)) {
+          _bytesById[id] = bytes;
+        }
+        Widget body;
+        if (type == 'image' && bytes != null) {
+          body = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.memory(
+                  bytes,
+                  key: ValueKey('img-$id'),
+                  fit: BoxFit.cover,
+                  height: 160,
+                  width: double.infinity,
+                  gaplessPlayback: true,
+                  errorBuilder: (ctx, err, st) => Container(
+                    height: 160, color: ClippyTokens.surfaceSunkenDark,
+                    alignment: Alignment.center,
+                    child: Icon(Icons.broken_image_outlined,
+                        color: ClippyTokens.textTerDark),
+                  ),
+                ),
+              ),
+              if (preview.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(preview, style: TextStyle(color: ClippyTokens.textSecDark, fontSize: 11)),
+              ],
+            ],
+          );
+        } else if (type == 'file') {
+          body = Row(
+            children: [
+              Icon(Icons.insert_drive_file_outlined, color: ClippyTokens.textSecDark),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  preview,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: ClippyTokens.textDark, fontSize: 13),
+                ),
+              ),
+              if (bytes != null)
+                Text('${(bytes.length / 1024).toStringAsFixed(1)} KB',
+                    style: TextStyle(color: ClippyTokens.textTerDark, fontSize: 11)),
+            ],
+          );
+        } else {
+          body = Text(
+            preview,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: ClippyTokens.textDark, fontSize: 14),
+          );
+        }
         return Dismissible(
           key: ValueKey(row['id']),
           background: Container(color: Colors.redAccent),
@@ -80,18 +164,13 @@ class _RecentScreenState extends State<RecentScreen> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             child: InkWell(
               borderRadius: BorderRadius.circular(10),
-              onTap: () => _copy(row),
+              onTap: type == 'image' || type == 'file' ? null : () => _copy(row),
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      preview,
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: ClippyTokens.textDark, fontSize: 14),
-                    ),
+                    body,
                     if (source.isNotEmpty) ...[
                       const SizedBox(height: 6),
                       Text(source, style: TextStyle(color: ClippyTokens.textTerDark, fontSize: 11)),

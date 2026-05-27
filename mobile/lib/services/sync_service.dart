@@ -8,6 +8,7 @@ import 'package:web_socket_channel/status.dart' as ws_status;
 import 'crypto_service.dart';
 import 'db_service.dart';
 import 'envelope.dart';
+import 'file_transfer_service.dart';
 
 enum ConnState { unpaired, connecting, connected, disconnected }
 
@@ -62,6 +63,23 @@ class SyncService extends ChangeNotifier {
   String _phoneName = 'phone';
   bool _connecting = false;
   Timer? _retryTimer;
+  final Map<String, TransferProgress> transfers = {};
+  late final FileTransferService _files = FileTransferService(
+    send: _send,
+    onInboundComplete: notifyListeners,
+    onProgress: _onProgress,
+  );
+
+  void _onProgress(TransferProgress p) {
+    transfers[p.transferId] = p;
+    notifyListeners();
+    if (p.done) {
+      Timer(const Duration(milliseconds: 1500), () {
+        transfers.remove(p.transferId);
+        notifyListeners();
+      });
+    }
+  }
 
   ConnState state = ConnState.unpaired;
   String? get desktopName => _paired?.name;
@@ -195,10 +213,23 @@ class SyncService extends ChangeNotifier {
       debugPrint('[clippy] env in: ${env.plugin}/${env.type}');
       if (env.plugin == 'clipboard' && env.type == 'CLIP_NEW') {
         await _onClipNew(env);
+      } else if (env.plugin == 'file_transfer') {
+        await _files.handle(env);
       }
     } catch (e) {
       debugPrint('[clippy] env parse failed: $e');
     }
+  }
+
+  /// Send raw bytes (image/file) to the paired desktop.
+  Future<String?> sendFile({
+    required Uint8List bytes,
+    required String mime,
+    required String kind, // 'image' | 'file'
+    String? name,
+  }) async {
+    if (state != ConnState.connected) return null;
+    return _files.sendBytes(content: bytes, mime: mime, kind: kind, name: name);
   }
 
   Future<void> _onClipNew(Envelope env) async {

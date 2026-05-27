@@ -6,7 +6,8 @@ import { FilterChip } from './components/FilterChip';
 import { SettingsView } from './components/SettingsView';
 import { EditPane } from './components/EditPane';
 import { PairingView } from './components/PairingView';
-import type { ConnStatus } from '../../electron/ipc-types';
+import type { ConnStatus, TransferProgressEvent } from '../../electron/ipc-types';
+import { TransferBanner } from './components/TransferBanner';
 import {
   useClipsStore,
   useFilterStore,
@@ -36,6 +37,8 @@ export function App() {
   const [mode, setMode] = useState<Mode>('list');
   const [editingId, setEditingId] = useState<number | null>(null);
   const [conn, setConn] = useState<ConnStatus>({ state: 'unpaired', deviceName: null });
+  const [toast, setToast] = useState<string | null>(null);
+  const [transfers, setTransfers] = useState<TransferProgressEvent[]>([]);
   const searchRef = useRef<SearchBarHandle>(null);
 
   // Initial load
@@ -55,7 +58,19 @@ export function App() {
     // Hydrate + subscribe to connection-state events
     void window.clippy.pairingState().then(setConn);
     const offConn = window.clippy.onConnState(setConn);
-    return () => { offClip(); offConn(); };
+    // Transfer progress: keep up to 4 most-recent, drop done ones after 1.5s.
+    const offTr = window.clippy.onTransferProgress((p) => {
+      setTransfers((prev) => {
+        const others = prev.filter((t) => t.transferId !== p.transferId);
+        return [p, ...others].slice(0, 4);
+      });
+      if (p.done) {
+        window.setTimeout(() => {
+          setTransfers((prev) => prev.filter((t) => t.transferId !== p.transferId));
+        }, 1500);
+      }
+    });
+    return () => { offClip(); offConn(); offTr(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -106,6 +121,29 @@ export function App() {
     const c = clips[selectedIndex()];
     if (c) await deleteClip(c.id, force);
   }
+  async function sendSelectedToPeer() {
+    const c = clips[selectedIndex()];
+    if (!c) return;
+    if (conn.state !== 'connected') {
+      showToast('No device connected');
+      return;
+    }
+    if (c.contentType !== 'image' && c.contentType !== 'file') {
+      showToast('Send-to-phone is for images/files (text auto-syncs already)');
+      return;
+    }
+    showToast(`Sending to ${conn.deviceName ?? 'phone'}…`);
+    try {
+      const tid = await window.clippy.sendClipToPeer(c.id);
+      showToast(tid ? 'Sent ✓' : 'Send failed');
+    } catch (e: any) {
+      showToast(`Send failed: ${e?.message ?? e}`);
+    }
+  }
+  function showToast(msg: string) {
+    setToast(msg);
+    window.setTimeout(() => setToast((t) => (t === msg ? null : t)), 2400);
+  }
   function openEditor() {
     const c = clips[selectedIndex()];
     if (!c) return;
@@ -146,7 +184,10 @@ export function App() {
       } else if (e.key === 'Delete') {
         e.preventDefault();
         await deleteSelected(e.shiftKey);
-      } else if (e.ctrlKey && (e.key === 's' || e.key === 'S')) {
+      } else if (e.ctrlKey && e.shiftKey && (e.key === 'S' || e.key === 's')) {
+        e.preventDefault();
+        await sendSelectedToPeer();
+      } else if (e.ctrlKey && !e.shiftKey && (e.key === 's' || e.key === 'S')) {
         e.preventDefault();
         await toggleFavoriteSelected();
       } else if ((e.key === 'p' || e.key === 'P') && !e.ctrlKey && !e.metaKey) {
@@ -255,6 +296,23 @@ export function App() {
               favoritesOnly: filter.favoritesOnly,
             }}
             onSelect={(h) => setByHash(h)}
+            buildActions={(c) => ({
+              onSend: async () => {
+                setByHash(c.hash);
+                await sendSelectedToPeer();
+              },
+              onEdit: () => {
+                setByHash(c.hash);
+                if (['text', 'link', 'code', 'color', 'emoji'].includes(c.contentType)) {
+                  setEditingId(c.id);
+                  setMode('edit');
+                }
+              },
+              onToggleFavorite: () => toggleFavorite(c.id),
+              onTogglePin: () => togglePin(c.id),
+              onDelete: () => deleteClip(c.id, false),
+            })}
+            canSend={(c) => conn.state === 'connected' && (c.contentType === 'image' || c.contentType === 'file')}
           />
         ) : null}
       </main>
@@ -267,11 +325,12 @@ export function App() {
           <CornerDownLeft size={10} strokeWidth={2.2} /> paste
           <span className="dot">·</span>
           <Delete size={11} strokeWidth={2.2} /> delete
+          <span className="dot">·</span> Ctrl+Shift+S send-to-phone
           <span className="dot">·</span> type to search
-          <span className="dot">·</span> Ctrl+Alt+Shift+V open
-          <span className="dot">·</span> Ctrl+Alt+V paste-last
         </span>
       </footer>
+      {toast && <div className="toast">{toast}</div>}
+      <TransferBanner transfers={transfers} />
       <style>{shellCss}</style>
     </div>
   );
@@ -336,6 +395,18 @@ const shellCss = `
   footer .hints { opacity: .7; display: inline-flex; align-items: center; gap: 4px; }
   footer .hints svg { vertical-align: -1px; }
   footer .pair-link svg { vertical-align: -1px; }
+  .toast {
+    position: fixed; bottom: 56px; left: 50%; transform: translateX(-50%);
+    background: var(--cm-surface-raised); color: var(--cm-text);
+    border: 1px solid var(--cm-border-strong); padding: 8px 14px;
+    border-radius: 999px; font-size: 12px; font-weight: 500;
+    box-shadow: 0 4px 12px rgba(0,0,0,.35); z-index: 9999;
+    animation: toast-in 150ms ease-out;
+  }
+  @keyframes toast-in {
+    from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+  }
   footer .conn { display: inline-flex; align-items: center; gap: 6px; }
   footer .conn .dot.live {
     width: 6px; height: 6px; border-radius: 3px;

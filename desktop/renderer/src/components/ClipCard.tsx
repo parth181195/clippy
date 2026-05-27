@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Star } from 'lucide-react';
+import { Star, Send, Pin, Trash2, Pencil } from 'lucide-react';
+import * as Menu from '@radix-ui/react-context-menu';
 import type { ClipDto } from '../../../electron/ipc-types';
 
 export type CardState = 'default' | 'hover' | 'selected' | 'pressed';
@@ -19,16 +20,28 @@ export function relTime(ms: number): string {
   return `${Math.floor(d / 86_400_000)}d`;
 }
 
+export interface ClipCardActions {
+  onSend?: () => void;
+  onToggleFavorite?: () => void;
+  onTogglePin?: () => void;
+  onDelete?: () => void;
+  onEdit?: () => void;
+}
+
 export function ClipCard({
   clip,
   state = 'default',
   density = 'comfortable',
   onSelect = () => {},
+  actions,
+  canSend = false,
 }: {
   clip: ClipDto;
   state?: CardState;
   density?: Density;
   onSelect?: () => void;
+  actions?: ClipCardActions;
+  canSend?: boolean;
 }) {
   const s = SIZES[density];
   const ct = clip.contentType;
@@ -46,7 +59,7 @@ export function ClipCard({
   else if (ct === 'code') content = <pre className="code">{clip.preview}</pre>;
   else content = <div className="text">{clip.preview}</div>;
 
-  return (
+  const cardBtn = (
     <button
       type="button"
       className={`card state-${state} type-${ct}`}
@@ -78,11 +91,92 @@ export function ClipCard({
           <Star size={12} strokeWidth={2} fill={clip.isFavorite ? 'currentColor' : 'none'} />
         </span>
       </div>
-
       <style>{cardCss}</style>
     </button>
   );
+
+  if (!actions) return cardBtn;
+
+  return (
+    <Menu.Root>
+      <Menu.Trigger asChild>{cardBtn}</Menu.Trigger>
+      <Menu.Portal>
+        <Menu.Content className="cm-ctx" collisionPadding={8}>
+          {actions.onSend && (
+            <Menu.Item
+              className="cm-ctx-item"
+              disabled={!canSend}
+              onSelect={actions.onSend}
+            >
+              <Send size={13} strokeWidth={2} />
+              <span>Send to phone</span>
+              <span className="cm-ctx-kbd">⇧⌃S</span>
+            </Menu.Item>
+          )}
+          {actions.onEdit && ['text','link','code','color','emoji'].includes(ct) && (
+            <Menu.Item className="cm-ctx-item" onSelect={actions.onEdit}>
+              <Pencil size={13} strokeWidth={2} />
+              <span>Edit</span>
+              <span className="cm-ctx-kbd">E</span>
+            </Menu.Item>
+          )}
+          <Menu.Separator className="cm-ctx-sep" />
+          {actions.onToggleFavorite && (
+            <Menu.Item className="cm-ctx-item" onSelect={actions.onToggleFavorite}>
+              <Star size={13} strokeWidth={2} fill={clip.isFavorite ? 'currentColor' : 'none'} />
+              <span>{clip.isFavorite ? 'Unfavorite' : 'Favorite'}</span>
+              <span className="cm-ctx-kbd">⌃S</span>
+            </Menu.Item>
+          )}
+          {actions.onTogglePin && (
+            <Menu.Item className="cm-ctx-item" onSelect={actions.onTogglePin}>
+              <Pin size={13} strokeWidth={2} fill={clip.isPinned ? 'currentColor' : 'none'} />
+              <span>{clip.isPinned ? 'Unpin' : 'Pin'}</span>
+              <span className="cm-ctx-kbd">P</span>
+            </Menu.Item>
+          )}
+          {actions.onDelete && (
+            <>
+              <Menu.Separator className="cm-ctx-sep" />
+              <Menu.Item className="cm-ctx-item danger" onSelect={actions.onDelete}>
+                <Trash2 size={13} strokeWidth={2} />
+                <span>Delete</span>
+                <span className="cm-ctx-kbd">Del</span>
+              </Menu.Item>
+            </>
+          )}
+        </Menu.Content>
+      </Menu.Portal>
+      <style>{ctxMenuCss}</style>
+    </Menu.Root>
+  );
 }
+
+const ctxMenuCss = `
+  .cm-ctx {
+    min-width: 200px; padding: 4px;
+    background: var(--cm-surface-raised);
+    border: 1px solid var(--cm-border-strong);
+    border-radius: 10px; box-shadow: 0 8px 28px rgba(0,0,0,.5);
+    z-index: 9999; font-family: inherit;
+  }
+  .cm-ctx-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 10px; border-radius: 6px; cursor: pointer;
+    font-size: 12.5px; color: var(--cm-text); outline: none;
+  }
+  .cm-ctx-item span:nth-of-type(1) { flex: 1; }
+  .cm-ctx-item .cm-ctx-kbd {
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 10.5px; color: var(--cm-text-tertiary);
+  }
+  .cm-ctx-item[data-highlighted] { background: var(--cm-accent); color: white; }
+  .cm-ctx-item[data-highlighted] .cm-ctx-kbd { color: rgba(255,255,255,.7); }
+  .cm-ctx-item[data-disabled] { color: var(--cm-text-tertiary); cursor: not-allowed; }
+  .cm-ctx-item.danger { color: #f87171; }
+  .cm-ctx-item.danger[data-highlighted] { background: #b91c1c; color: white; }
+  .cm-ctx-sep { height: 1px; background: var(--cm-border-subtle); margin: 4px 2px; }
+`;
 
 function ImageThumb({ id }: { id: number }) {
   const [src, setSrc] = useState<string | null>(null);

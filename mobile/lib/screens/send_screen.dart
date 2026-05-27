@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../services/sync_service.dart';
 import '../theme.dart';
@@ -37,6 +39,40 @@ class _SendScreenState extends State<SendScreen> {
     }
   }
 
+  Future<void> _pickAndSend(FileType type) async {
+    final res = await FilePicker.platform.pickFiles(type: type, withData: true);
+    if (res == null || res.files.isEmpty) return;
+    final f = res.files.single;
+    final bytes = f.bytes ?? (f.path != null ? await File(f.path!).readAsBytes() : null);
+    if (bytes == null) return;
+    final name = f.name;
+    final mime = _guessMime(name);
+    final kind = mime.startsWith('image/') ? 'image' : 'file';
+    setState(() => _sending = true);
+    try {
+      final tid = await SyncService.instance.sendFile(bytes: bytes, mime: mime, kind: kind, name: name);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(tid != null ? 'Sent $name' : 'Not connected'), duration: const Duration(seconds: 1)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  String _guessMime(String name) {
+    final l = name.toLowerCase();
+    if (l.endsWith('.png')) return 'image/png';
+    if (l.endsWith('.jpg') || l.endsWith('.jpeg')) return 'image/jpeg';
+    if (l.endsWith('.gif')) return 'image/gif';
+    if (l.endsWith('.webp')) return 'image/webp';
+    if (l.endsWith('.pdf')) return 'application/pdf';
+    return 'application/octet-stream';
+  }
+
   @override
   Widget build(BuildContext context) {
     final connected = SyncService.instance.state == ConnState.connected;
@@ -70,11 +106,41 @@ class _SendScreenState extends State<SendScreen> {
             icon: _sending
                 ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.send),
-            label: Text(connected ? 'Send' : 'Not connected'),
+            label: Text(connected ? 'Send text' : 'Not connected'),
             style: FilledButton.styleFrom(
               backgroundColor: ClippyTokens.accent,
               padding: const EdgeInsets.symmetric(vertical: 14),
             ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: connected && !_sending ? () => _pickAndSend(FileType.image) : null,
+                  icon: const Icon(Icons.image_outlined),
+                  label: const Text('Send image'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: ClippyTokens.textDark,
+                    side: BorderSide(color: ClippyTokens.borderStrongDark),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: connected && !_sending ? () => _pickAndSend(FileType.any) : null,
+                  icon: const Icon(Icons.attach_file),
+                  label: const Text('Send file'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: ClippyTokens.textDark,
+                    side: BorderSide(color: ClippyTokens.borderStrongDark),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),

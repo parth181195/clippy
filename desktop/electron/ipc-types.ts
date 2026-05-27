@@ -80,11 +80,25 @@ export const IPC = {
   pairingCancel: 'pair:cancel',
   pairingState: 'pair:state',
   unpair: 'pair:unpair',
+  // File transfer
+  sendClipToPeer: 'sync:send-clip',
   // Events from main → renderer
   EVT_CLIP_NEW: 'evt:clip-new',
   EVT_INCOGNITO_CHANGED: 'evt:incognito-changed',
   EVT_CONN_STATE: 'evt:conn-state',
+  EVT_TRANSFER_PROGRESS: 'evt:transfer-progress',
 } as const;
+
+export interface TransferProgressEvent {
+  transferId: string;
+  direction: 'in' | 'out';
+  name: string;
+  kind: 'image' | 'file';
+  sent: number;
+  total: number;
+  done: boolean;
+  failed?: string;
+}
 
 export type ConnState = 'unpaired' | 'connecting' | 'connected' | 'disconnected';
 
