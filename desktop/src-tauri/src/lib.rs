@@ -127,20 +127,11 @@ pub fn run() {
             app.global_shortcut().register(panel_chord)?;
             app.global_shortcut().register(paste_chord)?;
             app.global_shortcut().register(inc_chord)?;
-
-            // Bottom-align the panel on the primary monitor.
-            if let Some(w) = app.get_webview_window("panel") {
-                if let Ok(Some(monitor)) = w.current_monitor() {
-                    let scale = monitor.scale_factor();
-                    let monitor_size = monitor.size();
-                    let monitor_pos = monitor.position();
-                    let window_size = w.outer_size().unwrap_or(tauri::PhysicalSize { width: 1280, height: 340 });
-                    let margin: i32 = (16.0 * scale) as i32;
-                    let x = monitor_pos.x + ((monitor_size.width as i32 - window_size.width as i32) / 2);
-                    let y = monitor_pos.y + (monitor_size.height as i32 - window_size.height as i32 - margin);
-                    let _ = w.set_position(tauri::PhysicalPosition { x, y });
-                }
-            }
+            // (Bottom-anchor positioning was removed — calling current_monitor()/
+            // set_position() in setup() on Wayland blocks the webview from
+            // initializing. Wayland xdg-shell ignores positions anyway; once
+            // the GNOME extension lands in Part C, the extension will place
+            // the window for us.)
 
             // Spawn clipboard polling pipeline
             let db2 = db.clone();

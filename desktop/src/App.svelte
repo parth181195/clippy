@@ -148,7 +148,8 @@
 <svelte:window on:keydown={onKeydown} />
 
 <div class="panel">
-  <header data-tauri-drag-region>
+  <div class="drag-handle" data-tauri-drag-region aria-label="Drag panel"></div>
+  <header>
     <SearchBar bind:value={filterStore.search} bind:focused={searchFocused} bind:this={searchBarRef} />
     <div class="chips">
       <FilterChip
@@ -235,6 +236,15 @@
     color: var(--cm-text);
     overflow: hidden;
   }
+  .drag-handle {
+    height: 10px;
+    width: 100%;
+    background: linear-gradient(180deg, rgba(255,255,255,.04), transparent);
+    cursor: grab;
+    flex-shrink: 0;
+    border-bottom: 1px solid rgba(255,255,255,.02);
+  }
+  .drag-handle:active { cursor: grabbing; }
   header {
     display: flex;
     align-items: center;
