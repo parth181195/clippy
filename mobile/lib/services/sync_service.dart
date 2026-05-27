@@ -10,6 +10,7 @@ import 'crypto_service.dart';
 import 'db_service.dart';
 import 'envelope.dart';
 import 'file_transfer_service.dart';
+import 'mdns_discovery.dart';
 
 enum ConnState { unpaired, connecting, connected, disconnected }
 
@@ -168,10 +169,33 @@ class SyncService extends ChangeNotifier {
       if (_channel == ch) _channel = null;
       state = ConnState.disconnected;
       notifyListeners();
+      // mDNS rescue: if the desktop's IP changed (e.g. moved Wi-Fi), the
+      // saved host is wrong. Look it up by service name and persist the
+      // updated host before the next retry.
+      _tryMdnsRescue();
       _scheduleRetry();
     } finally {
       _connecting = false;
     }
+  }
+
+  Future<void> _tryMdnsRescue() async {
+    if (_paired == null || _retryAttempt < 2) return; // only after a couple of fails
+    final found = await MdnsDiscovery.findDesktop();
+    if (found == null) return;
+    if (found.host == _paired!.host && found.port == _paired!.port) return;
+    debugPrint('[clippy] mDNS rescue: ${_paired!.host} → ${found.host}');
+    final updated = PairingPayload(
+      v: _paired!.v,
+      deviceId: _paired!.deviceId,
+      name: _paired!.name,
+      host: found.host,
+      port: found.port,
+      psk: _paired!.psk,
+      pubkey: _paired!.pubkey,
+    );
+    _paired = updated;
+    await _storage.write(key: 'pairing', value: jsonEncode(updated.toJson()));
   }
 
   void _scheduleRetry() {
