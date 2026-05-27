@@ -262,10 +262,11 @@ clippy/
 - SQLite FTS5 for text content
 - Image/file/color search by metadata
 
-#### F4. Pin and Favorite (two separate axes)
-- **Pin** — position discipline. Pinned clips always render first, with an accent-colored top stripe. Toggled with `P` or right-click → Pin. Pinned clips are protected from auto-pruning.
-- **Favorite** — retention discipline. Favorited clips show a filled star and are also protected from auto-pruning. Toggled with `Ctrl+S` or right-click → Favorite. `Alt` toggles a favorites-only view.
-- A clip can be both pinned AND favorited, neither, or either. They're orthogonal.
+#### F4. Pin and Favorite (two separate axes, sharper split)
+- **Pin** — **ephemeral** position discipline. Pinned clips always render first with an accent-colored top stripe. Toggled with `P` or right-click → Pin. **Pin does NOT protect from auto-pruning** — it's for in-flight task focus ("keep this at the top while I'm working"). Mental model: browser tab pin.
+- **Favorite** — **permanent** retention discipline. Favorited clips show a filled star and are **never** auto-deleted, regardless of `history_size` limit. Toggled with `Ctrl+S` or right-click → Favorite. `Alt` toggles a favorites-only view. Mental model: browser bookmark.
+- The two are orthogonal: a clip can be pinned, favorited, both, or neither. To keep something forever AND on top, the user pins AND favorites it.
+- Auto-pruning query: `DELETE FROM clips WHERE is_favorite = 0 ORDER BY created_at ASC` until count ≤ `history_size`.
 
 #### F5. Incognito mode
 - Toggle hotkey: `Ctrl+Shift+I` (configurable)
@@ -362,8 +363,8 @@ CREATE TABLE clips (
     content_hash TEXT NOT NULL,           -- sha256 of primary content
     preview      TEXT,                    -- short text preview for display/search
     source_app   TEXT,                    -- "firefox", "code", etc.
-    is_favorite  INTEGER NOT NULL DEFAULT 0,  -- retention discipline (star icon)
-    is_pinned    INTEGER NOT NULL DEFAULT 0,  -- position discipline (always-first, top stripe)
+    is_favorite  INTEGER NOT NULL DEFAULT 0,  -- permanent retention (star); never auto-pruned
+    is_pinned    INTEGER NOT NULL DEFAULT 0,  -- ephemeral position (top stripe); subject to pruning
     created_at   INTEGER NOT NULL,            -- unix epoch ms
     UNIQUE (content_hash)
 );
@@ -515,6 +516,7 @@ warn          #B86A6A
 - [ ] Delete removes; Shift+Delete force-deletes pinned/favorited items; `Ctrl+S` toggles favorite; `P` toggles pin; Alt toggles favorites-only
 - [ ] `Ctrl+Enter` on a `link` clip opens it in the default browser
 - [ ] Pin draws the accent top stripe AND moves the clip to the front of any layout's ordering; un-pinning restores chronological position; both `is_pinned` and `is_favorite` survive a restart
+- [ ] When history exceeds `history_size`, **favorited** clips are never pruned; **pinned-but-not-favorited** clips ARE pruned (verified by pinning a clip, then filling history past the limit, and observing the pinned clip vanish)
 - [ ] `E` opens the edit pane for a text/link/code/color/emoji clip; pressing `Ctrl+Enter` in the pane saves a new clip with `source_app = 'Clippy (edited)'` AND pastes it; the original is untouched
 - [ ] Edit pane refuses to open on `image` and `file` clips
 - [ ] Switching layout (Cards → Spotlight → Sectioned → Mosaic) in settings re-renders with the same selection state and search query; no state loss
@@ -627,17 +629,20 @@ A **connection chip** sits at the top of Recent: `● synced with Helios · 2s a
 
 **Pairing screen** is a full-screen camera view with a 220×220 viewfinder, accent-coloured border, white corner markers, and "Point your phone at the QR code…" caption. A "Enter code instead" pill at the bottom triggers a manual-entry sheet. On success, the viewfinder fills with accent + checkmark.
 
-**Notifications:**
-- On new desktop clip (text-shaped, auto-sync): silent low-priority notification "From {device_name}" with up to 2 lines of preview; tap copies to phone clipboard.
-- On file received: standard-importance notification "{filename} received · {size} · from {device_name}" with **Open** and **Share** actions.
-- Foreground-service notification (always present): low-priority "Listening for clips from {device_name}" / "Looking for {device_name}…" / "Disconnected" depending on state. Dismissible only via notification-channel settings (KDE Connect convention). Tapping it opens the app.
+**Notifications (deliberately quiet for text):**
+- **Text-shaped clips arriving from the desktop: NO per-clip notification.** They appear silently in the Recent list (and in the phone's clipboard if the user has flipped "Auto-copy to clipboard" on). The same applies to edited clips (`source_app = 'Clippy (edited)'`) — they're text-shaped, so silent.
+- **File arrivals: notification.** "{filename} received · {size} · from {device_name}" with **Open** and **Share** actions, standard importance.
+- **Foreground-service notification (always present):** low-priority "Listening for clips from {device_name}" / "Looking for {device_name}…" / "Disconnected" depending on state. This is the service indicator, not a per-clip notification — dismissible only via notification-channel settings (KDE Connect convention). Tapping it opens the app.
+- A small **toast inside the app** (not a system notification) flashes "Synced {N} clips" when the user opens the app after a backfill, so they know what arrived while they were away.
+
+The same policy applies on the desktop (no toast on every incoming clip from phone — only on incoming files). Both directions are intentionally quiet for text.
 
 ### 7.6 Android clipboard limitations
 
 Android 10+ restricts background clipboard reads.
 
 - **Phone → desktop (text-shaped):** strictly user-initiated. Either the Send composer (user types/pastes, taps Send) or the "Share to Clippy" share-sheet target. **No background clipboard polling**, ever.
-- **Desktop → phone (text-shaped, auto-sync):** delivered as notifications; user taps to copy into the phone's clipboard. There's an opt-in setting ("Auto-copy to clipboard") to skip the tap.
+- **Desktop → phone (text-shaped, auto-sync):** delivered **silently** into the Recent list. No per-clip notification. The user opens the app to see what arrived. There's an opt-in setting ("Auto-copy to clipboard") that, when enabled, also writes the latest arriving text-shaped clip directly into the phone's clipboard so it's pasteable in the next app without opening Clippy.
 - **File transfers (both directions):** never automatic. Phone → desktop via share-sheet; desktop → phone via right-click → "Send to phone" or hover-overlay button on a `file`/`image` card.
 
 The foreground service keeps the WebSocket alive while the app is backgrounded. Notification text mirrors connection state (per the connection-state model in §6.3).
@@ -648,10 +653,12 @@ The foreground service keeps the WebSocket alive while the app is backgrounded. 
 - [ ] Device names entered during pairing show up in connection indicator (desktop) and notification text (phone)
 - [ ] Pairing data persists across reboots on both sides
 - [ ] Battery-optimization exemption prompt appears on first launch after pairing
-- [ ] Copying text/link/code/color/emoji on desktop appears as notification on phone within 1 second on same LAN
-- [ ] Tapping the notification copies text to phone clipboard; with "Auto-copy" enabled, the tap is not required
-- [ ] Using share-sheet "Share to Clippy" sends text/URL to desktop, where it appears in history
+- [ ] Copying text/link/code/color/emoji on desktop appears in the phone's Recent list within 1 second on same LAN, with **no system notification raised** (verified by checking notification shade is empty after the copy)
+- [ ] With "Auto-copy to clipboard" enabled in phone settings, the arriving text is also written to the phone's clipboard within 1 s, ready to paste in the next app
+- [ ] Using share-sheet "Share to Clippy" sends text/URL to desktop, where it appears in history (no desktop notification — just appears at top of panel)
 - [ ] Sending a text via the Send composer on phone appears on desktop within 1 second
+- [ ] **Receiving a file** raises a standard-importance notification with Open + Share actions; receiving text raises **none**
+- [ ] Opening the phone app after a backfill flashes an in-app toast "Synced N clips" so the user knows what arrived silently
 - [ ] Copying a **file** on the desktop does NOT auto-sync; the clip appears locally only until the user invokes Send (per §8.5 invariant)
 - [ ] If phone leaves WiFi and returns, sync resumes via `ConnectivityManager` callback in under 2 s with backfill via `CLIP_LIST since_ts`
 - [ ] Connection indicator on desktop and connection chip on phone reflect all four states (connected / connecting / disconnected / unpaired) within 1 s of state change
@@ -810,7 +817,7 @@ flutter build apk --release
 3. **Android foreground-service notification importance.** Must be IMPORTANCE_LOW (silent but visible) so users can mute via the channel without killing the service.
 4. **Custom shell-command actions** open the door for users to run arbitrary commands. Guard with a confirmation dialog the first time a `shell_command` action is invoked on a new clip.
 5. **Two settings surfaces** (extension prefs + app settings). Settle the boundary in code: extension prefs hold ONLY the extension's own settings; everything else is in the app.
-6. **Edited clips and round-trip on the phone.** When a user edits a text clip on the desktop, the resulting "Clippy (edited)" clip auto-syncs to the phone — which is the desired behavior. Make sure the source-app rendering on the phone doesn't break for non-existent app id `Clippy (edited)`.
+6. **Edited clips and round-trip on the phone.** When a user edits a text clip on the desktop, the resulting "Clippy (edited)" clip auto-syncs to the phone silently (per the no-notification-on-text-clips policy). Render a Clippy logo as the source-app icon for the sentinel `source_app = 'Clippy (edited)'`, on both desktop and phone.
 7. **Layout switching state preservation.** Search query, selected clip, scroll position, and filter must survive a layout change. Verify in tests.
 
 ---
