@@ -56,6 +56,31 @@ const APPS: Record<string, React.ReactNode> = {
       <line x1="4" y1="9" x2="8" y2="9" stroke="#A8862C" strokeWidth=".8" />
     </svg>
   ),
+  files: (
+    // Nautilus / file manager — folder glyph
+    <svg width="14" height="14" viewBox="0 0 14 14">
+      <path d="M1.5 4a1 1 0 0 1 1-1h3l1.2 1.5h5.3a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H2.5a1 1 0 0 1-1-1z" fill="#5B9BD5" stroke="#3A77B0" strokeWidth=".5" />
+      <path d="M2.5 3h3l1.2 1.5h5.3v1H2.5z" fill="#7BB5E5" />
+    </svg>
+  ),
+  obsidian: (
+    <svg width="14" height="14" viewBox="0 0 14 14">
+      <path d="M7 1L2 4v6l5 3 5-3V4z" fill="#7C3AED" />
+      <path d="M7 1v12M2 4l5 3 5-3" stroke="#fff" strokeWidth=".4" fill="none" opacity=".5" />
+    </svg>
+  ),
+  spotify: (
+    <svg width="14" height="14" viewBox="0 0 14 14">
+      <circle cx="7" cy="7" r="6.5" fill="#1ED760" />
+      <path d="M4 6c2-.6 4-.5 6 .5M4 8c1.5-.4 3-.3 4.5.4M4.5 10c1-.3 2-.2 3 .3" stroke="#000" strokeWidth=".9" fill="none" strokeLinecap="round" />
+    </svg>
+  ),
+  zed: (
+    <svg width="14" height="14" viewBox="0 0 14 14">
+      <rect width="14" height="14" rx="3" fill="#0A0A14" />
+      <path d="M3 4h8L3 10h8" stroke="#FFB73D" strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
 };
 
 function matchApp(sourceApp: string): React.ReactNode | null {
@@ -67,6 +92,10 @@ function matchApp(sourceApp: string): React.ReactNode | null {
   if (/code|vscode|codium/.test(s)) return APPS.vscode;
   if (/slack/.test(s)) return APPS.slack;
   if (/notes|gedit|text\-editor/.test(s)) return APPS.notes;
+  if (/nautilus|files|nemo|caja|dolphin/.test(s)) return APPS.files;
+  if (/obsidian/.test(s)) return APPS.obsidian;
+  if (/spotify/.test(s)) return APPS.spotify;
+  if (/^zed$|dev\.zed/.test(s)) return APPS.zed;
   return null;
 }
 
