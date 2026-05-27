@@ -2,6 +2,8 @@ use tracing_subscriber::EnvFilter;
 
 pub mod clipboard;
 pub mod db;
+pub mod excluded_apps;
+pub mod thumb;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

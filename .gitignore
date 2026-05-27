@@ -38,3 +38,6 @@ mobile/ios/Runner.xcodeproj/xcuserdata/
 # Test/coverage
 **/coverage/
 **/.coverage
+
+# Stray non-project files
+*.pdf
