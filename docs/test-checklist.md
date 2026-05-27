@@ -26,6 +26,9 @@ This session shipped a lot — here's the punch-list for verification.
 ## Phone (re-`flutter run` to pick up changes)
 
 - [ ] **Recent screen redesigned**: 56px thumbnail + type badge + `FROM DESKTOP` chip + relative time. Swipe row-end to delete (with trash icon backdrop).
+- [ ] **Search field** above the Recent list filters by preview + source app on the fly.
+- [ ] **Long-press a row** → bottom sheet with Copy / Favorite / Pin / Delete.
+- [ ] **Pinned clips sort first** (pushpin icon shows next to the star).
 - [ ] **Background sync** — close the app (swipe away from recents). The notification "Clippy sync · Paired with <name>" should remain. Copy something on desktop → wait a few seconds → reopen app → new clip is in Recent. (May need Settings → Background sync → Disable battery optimization for reliability.)
 - [ ] **Battery optimization card** in Settings → status + button to open system settings.
 - [ ] **mDNS rescue** — change your laptop's Wi-Fi (different DHCP). After two failed reconnects (~6s), phone queries mDNS for `_clippy._tcp.local`, finds the new IP, persists it, and reconnects. No re-pairing.
