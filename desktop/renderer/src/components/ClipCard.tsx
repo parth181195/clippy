@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Star, Send, Pin, Trash2, Pencil } from 'lucide-react';
 import * as Menu from '@radix-ui/react-context-menu';
 import type { ClipDto } from '../../../electron/ipc-types';
+import { SourceIcon } from './SourceIcon';
 
 const BASH_KW = /\b(sudo|cd|ls|cat|grep|curl|echo|export|apt|install|docker|compose|up|down|run|build|exec)\b/;
 const TS_KW = /\b(const|let|var|function|return|if|else|import|export|from|async|await|new|class|extends|interface|type|null|undefined|true|false)\b/;
@@ -170,6 +171,7 @@ export function ClipCard({
           {ct.toUpperCase()}
         </span>
         {clip.sourceApp && <span className="source">{clip.sourceApp}</span>}
+        <SourceIcon sourceApp={clip.sourceApp} />
       </div>
       <div className="content">{content}</div>
       <div className="bottom">
@@ -335,6 +337,7 @@ const cardCss = `
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     text-align: right;
   }
+  .src-icon { display: inline-flex; flex-shrink: 0; }
   .content { flex: 1; overflow: hidden; min-height: 0; }
   .text, .code {
     font-size: 13px; line-height: 1.5; color: var(--cm-text); overflow: hidden;
