@@ -45,7 +45,7 @@ export const DEFAULT_SETTINGS: Settings = {
   density: 'comfortable',
   accent: '#E95678',
   panelPosition: 'bottom',
-  hotkeyPanel: 'Ctrl+Shift+F11',
+  hotkeyPanel: 'Ctrl+Alt+Shift+V',
   hotkeyPasteLast: 'Ctrl+Alt+V',
   hotkeyIncognito: 'Ctrl+Shift+I',
   historySize: 500,

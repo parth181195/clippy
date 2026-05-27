@@ -1,6 +1,6 @@
 import { app, BrowserWindow, globalShortcut, Tray, Menu, nativeImage } from 'electron';
 import { join } from 'node:path';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { Db } from './db';
 import { registerIpc } from './ipc';
@@ -12,6 +12,8 @@ import { SoundPlayer } from './sound';
 import { Notifier } from './notifications';
 import { Incognito } from './incognito';
 import { currentFocusedApp } from './focused-app';
+import { startDbusApp } from './dbus-app';
+import { installAll as installGnomeShortcuts } from './gnome-shortcut';
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -162,11 +164,21 @@ app.whenReady().then(() => {
     db,
     onPaste: pasteById,
     onHidePanel: () => mainWindow?.hide(),
-    onShowPanel: () => {
-      mainWindow?.show();
-      mainWindow?.focus();
-    },
+    onShowPanel: () => { mainWindow?.show(); mainWindow?.focus(); },
     onTogglePanel: toggleWindow,
+    onSettingsSaved: (next) => {
+      // Re-install GNOME custom keybindings whenever the user changes a chord
+      // in Settings → Hotkeys. Idempotent; only the changed binding actually
+      // gets a different GNOME binding string.
+      installGnomeShortcuts({
+        panel: next.hotkeyPanel,
+        pasteLast: next.hotkeyPasteLast,
+        incognito: next.hotkeyIncognito,
+      });
+      // Live-toggle sound & notifications without restart
+      sound?.setEnabled(next.soundOnCopy);
+      notifier?.setEnabled(next.notificationsOnCopy);
+    },
   });
 
   if (settings.autostart) installAutostart();
@@ -194,26 +206,55 @@ app.whenReady().then(() => {
   });
   startPolling(settings.pollingMs, () => incognito?.isActive() ?? false, handle);
 
-  // Hotkeys
-  const reg = (chord: string, fn: () => void) => {
+  // Hotkeys — log to a file in userData so we can diagnose Wayland registration
+  // failures regardless of how Electron was launched (npx, npm, .desktop, etc.).
+  const logPath = join(app.getPath('userData'), 'clippy', 'hotkeys.log');
+  const logHk = (msg: string) => {
+    const line = `[${new Date().toISOString()}] ${msg}\n`;
     try {
-      if (!globalShortcut.register(chord, fn)) console.warn(`shortcut not registered: ${chord}`);
+      appendFileSync(logPath, line);
+    } catch {}
+    console.log(line.trim());
+  };
+  logHk(`startup: hotkeyPanel=${settings.hotkeyPanel} pasteLast=${settings.hotkeyPasteLast} incognito=${settings.hotkeyIncognito}`);
+  const reg = (chord: string, fn: () => void, label: string) => {
+    try {
+      const ok = globalShortcut.register(chord, () => { logHk(`fired: ${label} (${chord})`); fn(); });
+      logHk(`register ${label} ${chord}: ${ok ? 'OK' : 'FAILED'}`);
     } catch (e) {
-      console.warn(`shortcut error: ${chord}`, e);
+      logHk(`register ${label} ${chord} threw: ${(e as Error).message}`);
     }
   };
-  reg(settings.hotkeyPanel, toggleWindow);
-  reg(settings.hotkeyPasteLast, () => {
+  reg(settings.hotkeyPanel, toggleWindow, 'panel');
+  const doPasteLast = () => {
     if (!db) return;
-    const row = db
-      .raw()
-      .prepare('SELECT id FROM clips ORDER BY created_at DESC LIMIT 1')
+    const row = db.raw().prepare('SELECT id FROM clips ORDER BY created_at DESC LIMIT 1')
       .get() as { id: number } | undefined;
-    if (row) pasteById(row.id, false).catch((e) => console.warn('paste-last failed', e));
-  });
+    if (row) pasteById(row.id, false).catch((e) => logHk('paste-last failed: ' + e));
+  };
+  reg(settings.hotkeyPasteLast, doPasteLast, 'paste-last');
   reg(settings.hotkeyIncognito, () => {
     const on = incognito?.toggle();
-    console.log('incognito:', on ? 'ON' : 'OFF');
+    logHk('incognito: ' + (on ? 'ON' : 'OFF'));
+  }, 'incognito');
+
+  // Expose io.clippy.App on the session bus so gdbus can drive the panel.
+  // Reliable Wayland hotkey path: a GNOME custom-keybinding that calls our
+  // D-Bus method (Mutter's portal-based global shortcuts are silently dropped).
+  void startDbusApp({
+    onToggle: () => toggleWindow(),
+    onShow: () => { mainWindow?.show(); mainWindow?.focus(); },
+    onHide: () => mainWindow?.hide(),
+    onPasteLast: () => doPasteLast(),
+    onToggleIncognito: () => incognito?.toggle(),
+  });
+  // Install / refresh all GNOME custom keybindings so user's hotkeys actually
+  // fire on Wayland. Idempotent on every startup, and re-called from the
+  // saveSettings IPC handler when the user changes a chord.
+  installGnomeShortcuts({
+    panel: settings.hotkeyPanel,
+    pasteLast: settings.hotkeyPasteLast,
+    incognito: settings.hotkeyIncognito,
   });
 });
 

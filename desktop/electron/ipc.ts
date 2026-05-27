@@ -29,8 +29,9 @@ export function registerIpc(opts: {
   onHidePanel: () => void;
   onShowPanel: () => void;
   onTogglePanel: () => void;
+  onSettingsSaved: (next: Settings) => void;
 }): void {
-  const { db, onPaste, onHidePanel, onShowPanel, onTogglePanel } = opts;
+  const { db, onPaste, onHidePanel, onShowPanel, onTogglePanel, onSettingsSaved } = opts;
   const raw = db.raw();
 
   ipcMain.handle(IPC.listClips, (_e, args: ListClipsArgs = {}): ClipDto[] => {
@@ -155,6 +156,7 @@ export function registerIpc(opts: {
       for (const [k, v] of rows) upsert.run(k, v);
     });
     tx(pairs);
+    onSettingsSaved(s);
   });
 
   ipcMain.handle(IPC.hidePanel, () => onHidePanel());
