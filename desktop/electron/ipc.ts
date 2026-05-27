@@ -30,8 +30,13 @@ export function registerIpc(opts: {
   onShowPanel: () => void;
   onTogglePanel: () => void;
   onSettingsSaved: (next: Settings) => void;
+  onPairingBegin: (deviceName: string) => Promise<{ qrSvg: string; shortCode: string }>;
+  onPairingCancel: () => void;
+  onUnpair: () => Promise<void>;
+  onPairingState: () => { state: string; deviceName: string | null };
 }): void {
-  const { db, onPaste, onHidePanel, onShowPanel, onTogglePanel, onSettingsSaved } = opts;
+  const { db, onPaste, onHidePanel, onShowPanel, onTogglePanel, onSettingsSaved,
+    onPairingBegin, onPairingCancel, onUnpair, onPairingState } = opts;
   const raw = db.raw();
 
   ipcMain.handle(IPC.listClips, (_e, args: ListClipsArgs = {}): ClipDto[] => {
@@ -162,6 +167,11 @@ export function registerIpc(opts: {
   ipcMain.handle(IPC.hidePanel, () => onHidePanel());
   ipcMain.handle(IPC.showPanel, () => onShowPanel());
   ipcMain.handle(IPC.togglePanel, () => onTogglePanel());
+
+  ipcMain.handle(IPC.pairingBegin, (_e, deviceName: string) => onPairingBegin(deviceName));
+  ipcMain.handle(IPC.pairingCancel, () => onPairingCancel());
+  ipcMain.handle(IPC.unpair, () => onUnpair());
+  ipcMain.handle(IPC.pairingState, () => onPairingState());
 }
 
 function applySetting(s: Settings, key: string, value: string): void {

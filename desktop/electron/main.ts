@@ -14,6 +14,7 @@ import { Incognito } from './incognito';
 import { currentFocusedApp } from './focused-app';
 import { startDbusApp } from './dbus-app';
 import { installAll as installGnomeShortcuts } from './gnome-shortcut';
+import { SyncService } from './sync/sync-service';
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -21,6 +22,7 @@ let db: Db | null = null;
 let incognito: Incognito | null = null;
 let sound: SoundPlayer | null = null;
 let notifier: Notifier | null = null;
+let syncService: SyncService | null = null;
 
 const isDev = !app.isPackaged;
 const VITE_URL = 'http://localhost:5174';
@@ -215,6 +217,18 @@ app.whenReady().then(() => {
     mainWindow?.webContents.send(IPC.EVT_INCOGNITO_CHANGED, on);
   });
 
+  // Sync service must exist before IPC + pipeline so the pairing handlers
+  // and the clipboard-pipeline hook can talk to it.
+  syncService = new SyncService({
+    db,
+    isOutgoingEnabled: () => loadSettingsFromDb().autoSyncOutgoing,
+    isIncomingEnabled: () => loadSettingsFromDb().autoSyncIncoming,
+    onConnStateChange: (state, deviceName) => {
+      mainWindow?.webContents.send(IPC.EVT_CONN_STATE, { state, deviceName });
+    },
+  });
+  syncService.start().catch((e) => console.warn('sync start failed', e));
+
   registerIpc({
     db,
     onPaste: pasteById,
@@ -222,18 +236,24 @@ app.whenReady().then(() => {
     onShowPanel: () => { mainWindow?.show(); mainWindow?.focus(); },
     onTogglePanel: toggleWindow,
     onSettingsSaved: (next) => {
-      // Re-install GNOME custom keybindings whenever the user changes a chord
-      // in Settings → Hotkeys. Idempotent; only the changed binding actually
-      // gets a different GNOME binding string.
       installGnomeShortcuts({
         panel: next.hotkeyPanel,
         pasteLast: next.hotkeyPasteLast,
         incognito: next.hotkeyIncognito,
       });
-      // Live-toggle sound & notifications without restart
       sound?.setEnabled(next.soundOnCopy);
       notifier?.setEnabled(next.notificationsOnCopy);
     },
+    onPairingBegin: async (deviceName) => {
+      const r = await syncService!.beginPairing(deviceName);
+      return { qrSvg: r.qrSvg, shortCode: r.shortCode };
+    },
+    onPairingCancel: () => syncService?.cancelPairing(),
+    onUnpair: async () => { await syncService?.unpair(); },
+    onPairingState: () => ({
+      state: syncService?.state_() ?? 'unpaired',
+      deviceName: syncService?.pairedDeviceName() ?? null,
+    }),
   });
 
   if (settings.autostart) installAutostart();
@@ -257,6 +277,8 @@ app.whenReady().then(() => {
         .get(id) as { preview: string } | undefined;
       notifier?.notifyCapture(ct as ContentType, row?.preview ?? '');
       mainWindow?.webContents.send(IPC.EVT_CLIP_NEW, id);
+      // Forward to sync (silent text auto-sync to peer; files won't fire here)
+      syncService?.onLocalClip(id, ct as ContentType);
     },
   });
   startPolling(settings.pollingMs, () => incognito?.isActive() ?? false, handle);

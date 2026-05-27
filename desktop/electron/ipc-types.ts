@@ -75,10 +75,28 @@ export const IPC = {
   hidePanel: 'panel:hide',
   showPanel: 'panel:show',
   togglePanel: 'panel:toggle',
+  // Pairing / sync
+  pairingBegin: 'pair:begin',
+  pairingCancel: 'pair:cancel',
+  pairingState: 'pair:state',
+  unpair: 'pair:unpair',
   // Events from main → renderer
   EVT_CLIP_NEW: 'evt:clip-new',
   EVT_INCOGNITO_CHANGED: 'evt:incognito-changed',
+  EVT_CONN_STATE: 'evt:conn-state',
 } as const;
+
+export type ConnState = 'unpaired' | 'connecting' | 'connected' | 'disconnected';
+
+export interface ConnStatus {
+  state: ConnState;
+  deviceName: string | null;
+}
+
+export interface PairingResult {
+  qrSvg: string;
+  shortCode: string;
+}
 
 export interface ListClipsArgs {
   search?: string | null;

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { IPC, type ClipDto, type ListClipsArgs, type Settings } from './ipc-types';
+import { IPC, type ClipDto, type ConnStatus, type ListClipsArgs, type PairingResult, type Settings } from './ipc-types';
 
 const api = {
   listClips: (args?: ListClipsArgs) => ipcRenderer.invoke(IPC.listClips, args ?? {}) as Promise<ClipDto[]>,
@@ -29,6 +29,18 @@ const api = {
     const h = (_e: any, on: boolean) => cb(on);
     ipcRenderer.on(IPC.EVT_INCOGNITO_CHANGED, h);
     return () => ipcRenderer.off(IPC.EVT_INCOGNITO_CHANGED, h);
+  },
+
+  // Pairing + sync state
+  pairingBegin: (deviceName: string) =>
+    ipcRenderer.invoke(IPC.pairingBegin, deviceName) as Promise<PairingResult>,
+  pairingCancel: () => ipcRenderer.invoke(IPC.pairingCancel) as Promise<void>,
+  pairingState: () => ipcRenderer.invoke(IPC.pairingState) as Promise<ConnStatus>,
+  unpair: () => ipcRenderer.invoke(IPC.unpair) as Promise<void>,
+  onConnState: (cb: (s: ConnStatus) => void) => {
+    const h = (_e: any, s: ConnStatus) => cb(s);
+    ipcRenderer.on(IPC.EVT_CONN_STATE, h);
+    return () => ipcRenderer.off(IPC.EVT_CONN_STATE, h);
   },
 };
 

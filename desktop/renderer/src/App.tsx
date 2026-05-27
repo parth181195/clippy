@@ -4,6 +4,8 @@ import { SearchBar, type SearchBarHandle } from './components/SearchBar';
 import { FilterChip } from './components/FilterChip';
 import { SettingsView } from './components/SettingsView';
 import { EditPane } from './components/EditPane';
+import { PairingView } from './components/PairingView';
+import type { ConnStatus } from '../../electron/ipc-types';
 import {
   useClipsStore,
   useFilterStore,
@@ -12,7 +14,7 @@ import {
 } from './lib/store';
 import './clippy.d';
 
-type Mode = 'list' | 'settings' | 'edit';
+type Mode = 'list' | 'settings' | 'edit' | 'pair';
 
 const TYPES = ['text', 'image', 'link', 'code', 'color', 'emoji', 'file'] as const;
 
@@ -32,6 +34,7 @@ export function App() {
 
   const [mode, setMode] = useState<Mode>('list');
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [conn, setConn] = useState<ConnStatus>({ state: 'unpaired', deviceName: null });
   const searchRef = useRef<SearchBarHandle>(null);
 
   // Initial load
@@ -42,10 +45,13 @@ export function App() {
       if (first && !useSelectionStore.getState().hash) setByHash(first.hash);
     });
     // Subscribe to clip-new events from main
-    const off = window.clippy.onClipNew(() => {
+    const offClip = window.clippy.onClipNew(() => {
       void refresh(filter.search, filter.type, filter.favoritesOnly);
     });
-    return off;
+    // Hydrate + subscribe to connection-state events
+    void window.clippy.pairingState().then(setConn);
+    const offConn = window.clippy.onConnState(setConn);
+    return () => { offClip(); offConn(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -201,7 +207,9 @@ export function App() {
         </button>
       </header>
       <main>
-        {mode === 'settings' ? (
+        {mode === 'pair' ? (
+          <PairingView onClose={() => setMode('list')} />
+        ) : mode === 'settings' ? (
           <SettingsView />
         ) : mode === 'edit' && selectedClipForEdit ? (
           <EditPane
@@ -238,15 +246,29 @@ export function App() {
       <footer>
         <span>{clips.length} items</span>
         <span className="dot">·</span>
-        <span className="conn">No device paired</span>
+        <ConnIndicator conn={conn} onPair={() => setMode('pair')} />
         <span className="spacer" />
         <span className="hints">
-          ↵ paste · ⌫ delete · type to search · Ctrl+Shift+F11 open · Ctrl+Alt+V paste-last
+          ↵ paste · ⌫ delete · type to search · Ctrl+Alt+Shift+V open · Ctrl+Alt+V paste-last
         </span>
       </footer>
       <style>{shellCss}</style>
     </div>
   );
+}
+
+function ConnIndicator({ conn, onPair }: { conn: ConnStatus; onPair: () => void }) {
+  if (conn.state === 'unpaired') {
+    return (
+      <span className="conn">
+        No device paired ·{' '}
+        <a className="pair-link" onClick={onPair}>Pair phone →</a>
+      </span>
+    );
+  }
+  if (conn.state === 'connecting') return <span className="conn">Connecting to {conn.deviceName ?? 'phone'}…</span>;
+  if (conn.state === 'connected')  return <span className="conn"><span className="dot live" /> synced with {conn.deviceName}</span>;
+  return <span className="conn">{conn.deviceName ?? 'phone'} (offline)</span>;
 }
 
 const shellCss = `
@@ -288,4 +310,10 @@ const shellCss = `
   footer .dot { opacity: .5; }
   footer .spacer { flex: 1; }
   footer .hints { opacity: .7; }
+  footer .conn { display: inline-flex; align-items: center; gap: 6px; }
+  footer .conn .dot.live {
+    width: 6px; height: 6px; border-radius: 3px;
+    background: var(--cm-accent); display: inline-block;
+  }
+  footer .pair-link { color: var(--cm-accent); text-decoration: underline; cursor: pointer; }
 `;
