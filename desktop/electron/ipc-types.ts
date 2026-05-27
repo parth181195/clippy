@@ -46,7 +46,7 @@ export const DEFAULT_SETTINGS: Settings = {
   accent: '#E95678',
   panelPosition: 'bottom',
   hotkeyPanel: 'Ctrl+Shift+F11',
-  hotkeyPasteLast: 'Ctrl+F11',
+  hotkeyPasteLast: 'Ctrl+Alt+V',
   hotkeyIncognito: 'Ctrl+Shift+I',
   historySize: 500,
   pollingMs: 300,

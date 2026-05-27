@@ -1,0 +1,156 @@
+import type { ClipDto } from '../../../electron/ipc-types';
+
+export type CardState = 'default' | 'hover' | 'selected' | 'pressed';
+export type Density = 'compact' | 'comfortable' | 'spacious';
+
+const SIZES: Record<Density, { w: number; h: number; pad: number; gap: number }> = {
+  compact: { w: 168, h: 210, pad: 10, gap: 8 },
+  comfortable: { w: 200, h: 240, pad: 12, gap: 10 },
+  spacious: { w: 232, h: 244, pad: 16, gap: 14 },
+};
+
+export function relTime(ms: number): string {
+  const d = Date.now() - ms;
+  if (d < 60_000) return 'now';
+  if (d < 3_600_000) return `${Math.floor(d / 60_000)}m`;
+  if (d < 86_400_000) return `${Math.floor(d / 3_600_000)}h`;
+  return `${Math.floor(d / 86_400_000)}d`;
+}
+
+export function ClipCard({
+  clip,
+  state = 'default',
+  density = 'comfortable',
+  onSelect = () => {},
+}: {
+  clip: ClipDto;
+  state?: CardState;
+  density?: Density;
+  onSelect?: () => void;
+}) {
+  const s = SIZES[density];
+  const ct = clip.contentType;
+
+  let content: React.ReactNode;
+  if (ct === 'image') content = <div className="image-thumb" />;
+  else if (ct === 'color')
+    content = (
+      <>
+        <div className="color-swatch" style={{ background: clip.preview }} />
+        <div className="color-text">{clip.preview}</div>
+      </>
+    );
+  else if (ct === 'emoji') content = <div className="emoji">{clip.preview}</div>;
+  else if (ct === 'code') content = <pre className="code">{clip.preview}</pre>;
+  else content = <div className="text">{clip.preview}</div>;
+
+  return (
+    <button
+      type="button"
+      className={`card state-${state} type-${ct}`}
+      style={{
+        width: s.w,
+        height: s.h,
+        padding: s.pad,
+        gap: s.gap,
+      }}
+      onClick={onSelect}
+    >
+      {clip.isPinned && <span className="pin-stripe" />}
+      <div className="top">
+        <span
+          className="badge"
+          style={{
+            background: `var(--badge-${ct}-bg)`,
+            color: `var(--badge-${ct}-fg)`,
+          }}
+        >
+          {ct.toUpperCase()}
+        </span>
+        {clip.sourceApp && <span className="source">{clip.sourceApp}</span>}
+      </div>
+      <div className="content">{content}</div>
+      <div className="bottom">
+        <span className="time">{relTime(clip.createdAt)}</span>
+        {clip.isFavorite ? (
+          <span className="star">★</span>
+        ) : (
+          <span className="star empty">☆</span>
+        )}
+      </div>
+
+      <style>{cardCss}</style>
+    </button>
+  );
+}
+
+const cardCss = `
+  .card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    background: var(--cm-surface);
+    border: 1px solid var(--cm-border-subtle);
+    border-radius: var(--cm-radius-card);
+    color: var(--cm-text);
+    transition: transform var(--cm-transition), background var(--cm-transition), border-color var(--cm-transition);
+    flex-shrink: 0;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+  }
+  .card.state-hover {
+    background: var(--cm-surface-raised);
+    border-color: color-mix(in srgb, var(--cm-accent) 33%, transparent);
+    transform: translateY(-2px);
+  }
+  .card.state-selected {
+    background: var(--cm-surface-raised);
+    border-color: var(--cm-accent);
+  }
+  .card.state-pressed { transform: scale(0.97); }
+  .pin-stripe {
+    position: absolute; top: 0; left: 14px; right: 14px; height: 2px;
+    background: var(--cm-accent);
+    border-bottom-left-radius: 1px; border-bottom-right-radius: 1px;
+  }
+  .top { display: flex; align-items: center; justify-content: space-between; min-height: 18px; }
+  .badge {
+    padding: 3px 7px; border-radius: 6px; font-size: 10px; font-weight: 600;
+    letter-spacing: 0.4px; line-height: 1; text-transform: uppercase;
+  }
+  .source {
+    font-size: 10px; color: var(--cm-text-tertiary);
+    font-family: 'Geist Mono', ui-monospace, monospace;
+  }
+  .content { flex: 1; overflow: hidden; min-height: 0; }
+  .text, .code {
+    font-size: 13px; line-height: 1.5; color: var(--cm-text); overflow: hidden;
+    display: -webkit-box; -webkit-line-clamp: 7; -webkit-box-orient: vertical;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .code {
+    font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11.5px;
+    line-height: 1.45; white-space: pre; -webkit-line-clamp: 8;
+  }
+  .image-thumb {
+    width: 100%; height: 100%; border-radius: 8px;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--cm-accent) 20%, var(--cm-surface-raised)) 0%, var(--cm-surface-raised) 60%);
+  }
+  .color-swatch {
+    flex: 1; border-radius: 8px;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,.06);
+  }
+  .color-text {
+    font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px;
+    color: var(--cm-text-secondary);
+  }
+  .emoji { display: flex; align-items: center; justify-content: center; height: 100%; font-size: 64px; line-height: 1; }
+  .bottom { display: flex; align-items: center; justify-content: space-between; min-height: 16px; }
+  .time {
+    font-size: 10px; color: var(--cm-text-tertiary);
+    font-family: 'Geist Mono', ui-monospace, monospace; letter-spacing: 0.3px;
+  }
+  .star { font-size: 14px; color: var(--cm-accent); }
+  .star.empty { color: var(--cm-text-tertiary); }
+`;

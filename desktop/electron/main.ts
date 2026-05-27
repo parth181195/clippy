@@ -4,29 +4,48 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { Db } from './db';
 import { registerIpc } from './ipc';
-import { DEFAULT_SETTINGS, IPC } from './ipc-types';
+import { DEFAULT_SETTINGS, IPC, type ContentType } from './ipc-types';
+import { startPolling } from './clipboard-poll';
+import { makeHandler } from './pipeline';
+import { pasteToActive } from './paste';
+import { SoundPlayer } from './sound';
+import { Notifier } from './notifications';
+import { Incognito } from './incognito';
+import { currentFocusedApp } from './focused-app';
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let db: Db | null = null;
+let incognito: Incognito | null = null;
+let sound: SoundPlayer | null = null;
+let notifier: Notifier | null = null;
 
 const isDev = !app.isPackaged;
-const VITE_URL = 'http://localhost:5173';
+const VITE_URL = 'http://localhost:5174';
 
 function loadSettingsFromDb() {
   if (!db) return DEFAULT_SETTINGS;
-  const rows = db
-    .raw()
-    .prepare('SELECT key, value FROM settings')
-    .all() as Array<{ key: string; value: string }>;
+  const rows = db.raw().prepare('SELECT key, value FROM settings').all() as Array<{
+    key: string;
+    value: string;
+  }>;
   const map = new Map(rows.map((r) => [r.key, r.value]));
   return {
     ...DEFAULT_SETTINGS,
-    windowTransparent: (map.get('window_transparent') ?? String(DEFAULT_SETTINGS.windowTransparent)) === 'true',
+    windowTransparent:
+      (map.get('window_transparent') ?? String(DEFAULT_SETTINGS.windowTransparent)) === 'true',
     autostart: (map.get('autostart') ?? String(DEFAULT_SETTINGS.autostart)) === 'true',
     hotkeyPanel: map.get('hotkey_panel') ?? DEFAULT_SETTINGS.hotkeyPanel,
     hotkeyPasteLast: map.get('hotkey_paste_last') ?? DEFAULT_SETTINGS.hotkeyPasteLast,
     hotkeyIncognito: map.get('hotkey_incognito') ?? DEFAULT_SETTINGS.hotkeyIncognito,
+    historySize: parseInt(map.get('history_size') ?? '', 10) || DEFAULT_SETTINGS.historySize,
+    pollingMs: parseInt(map.get('polling_ms') ?? '', 10) || DEFAULT_SETTINGS.pollingMs,
+    soundOnCopy: (map.get('sound_on_copy') ?? String(DEFAULT_SETTINGS.soundOnCopy)) === 'true',
+    notificationsOnCopy:
+      (map.get('notifications_on_copy') ?? String(DEFAULT_SETTINGS.notificationsOnCopy)) === 'true',
+    incognitoAutoDisableSecs:
+      parseInt(map.get('incognito_auto_disable_secs') ?? '', 10) ||
+      DEFAULT_SETTINGS.incognitoAutoDisableSecs,
   };
 }
 
@@ -88,46 +107,97 @@ Terminal=false
 }
 
 function createTray() {
-  // Try a bundled icon; fall back to an empty image so the tray still appears.
-  const iconPath = join(process.cwd(), 'desktop', 'assets', 'icons', 'tray.png');
-  const icon = existsSync(iconPath) ? nativeImage.createFromPath(iconPath) : nativeImage.createEmpty();
+  const iconPath = join(process.cwd(), 'assets', 'icons', 'tray.png');
+  const icon = existsSync(iconPath)
+    ? nativeImage.createFromPath(iconPath)
+    : nativeImage.createEmpty();
   tray = new Tray(icon);
   const menu = Menu.buildFromTemplate([
-    { label: 'Show panel', click: () => { mainWindow?.show(); mainWindow?.focus(); } },
+    {
+      label: 'Show panel',
+      click: () => {
+        mainWindow?.show();
+        mainWindow?.focus();
+      },
+    },
     { label: 'Hide panel', click: () => mainWindow?.hide() },
     { type: 'separator' },
-    { label: 'Quit Clippy', click: () => { app.quit(); } },
+    {
+      label: 'Quit Clippy',
+      click: () => {
+        app.quit();
+      },
+    },
   ]);
   tray.setToolTip('Clippy');
   tray.setContextMenu(menu);
   tray.on('click', () => toggleWindow());
 }
 
-async function pasteById(_id: number, _shiftForTerminal: boolean): Promise<void> {
-  // Stub for now — wired in the paste.ts port (next batch).
-  console.log('[paste] stub: id', _id, 'shift', _shiftForTerminal);
+async function pasteById(id: number, shiftForTerminal: boolean): Promise<void> {
+  if (!db) return;
+  const row = db
+    .raw()
+    .prepare('SELECT content, mime FROM clips WHERE id = ?')
+    .get(id) as { content: Buffer; mime: string } | undefined;
+  if (!row) return;
+  // Hide window so the synthesised Ctrl+V lands in the previously-focused app.
+  mainWindow?.hide();
+  await new Promise((r) => setTimeout(r, 50));
+  await pasteToActive(row.content, row.mime, shiftForTerminal);
 }
 
 app.whenReady().then(() => {
   db = Db.openDefault();
+  const settings = loadSettingsFromDb();
+
+  sound = new SoundPlayer(settings.soundOnCopy);
+  notifier = new Notifier(settings.notificationsOnCopy);
+
+  incognito = new Incognito(settings.incognitoAutoDisableSecs, (on) => {
+    mainWindow?.webContents.send(IPC.EVT_INCOGNITO_CHANGED, on);
+  });
+
   registerIpc({
     db,
     onPaste: pasteById,
     onHidePanel: () => mainWindow?.hide(),
-    onShowPanel: () => { mainWindow?.show(); mainWindow?.focus(); },
+    onShowPanel: () => {
+      mainWindow?.show();
+      mainWindow?.focus();
+    },
     onTogglePanel: toggleWindow,
   });
 
-  const settings = loadSettingsFromDb();
   if (settings.autostart) installAutostart();
-
   createWindow();
   createTray();
 
+  // Wire clipboard polling pipeline
+  const excludedApps = (
+    db.raw().prepare('SELECT app_id FROM excluded_apps').all() as Array<{ app_id: string }>
+  ).map((r) => r.app_id);
+  const handle = makeHandler({
+    db,
+    excludedApps,
+    historySize: settings.historySize,
+    getFocusedApp: currentFocusedApp,
+    onNewClip: (id, ct) => {
+      sound?.playCopy();
+      const row = db!
+        .raw()
+        .prepare('SELECT preview FROM clips WHERE id = ?')
+        .get(id) as { preview: string } | undefined;
+      notifier?.notifyCapture(ct as ContentType, row?.preview ?? '');
+      mainWindow?.webContents.send(IPC.EVT_CLIP_NEW, id);
+    },
+  });
+  startPolling(settings.pollingMs, () => incognito?.isActive() ?? false, handle);
+
+  // Hotkeys
   const reg = (chord: string, fn: () => void) => {
     try {
-      const ok = globalShortcut.register(chord, fn);
-      if (!ok) console.warn(`failed to register shortcut: ${chord}`);
+      if (!globalShortcut.register(chord, fn)) console.warn(`shortcut not registered: ${chord}`);
     } catch (e) {
       console.warn(`shortcut error: ${chord}`, e);
     }
@@ -139,9 +209,11 @@ app.whenReady().then(() => {
       .raw()
       .prepare('SELECT id FROM clips ORDER BY created_at DESC LIMIT 1')
       .get() as { id: number } | undefined;
-    if (row) {
-      pasteById(row.id, false).catch((e) => console.warn('paste-last failed', e));
-    }
+    if (row) pasteById(row.id, false).catch((e) => console.warn('paste-last failed', e));
+  });
+  reg(settings.hotkeyIncognito, () => {
+    const on = incognito?.toggle();
+    console.log('incognito:', on ? 'ON' : 'OFF');
   });
 });
 
@@ -149,7 +221,6 @@ app.on('will-quit', () => {
   globalShortcut.unregisterAll();
 });
 
-// Keep app alive when all windows are closed (clipboard managers run in tray).
 app.on('window-all-closed', () => {
-  // intentionally do nothing — app continues running with tray icon
+  // Stay alive in tray.
 });
