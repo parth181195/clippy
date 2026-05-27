@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type { ClipDto } from '../../../electron/ipc-types';
 
 export type CardState = 'default' | 'hover' | 'selected' | 'pressed';
@@ -32,7 +33,7 @@ export function ClipCard({
   const ct = clip.contentType;
 
   let content: React.ReactNode;
-  if (ct === 'image') content = <div className="image-thumb" />;
+  if (ct === 'image') content = <ImageThumb id={clip.id} />;
   else if (ct === 'color')
     content = (
       <>
@@ -84,6 +85,32 @@ export function ClipCard({
   );
 }
 
+function ImageThumb({ id }: { id: number }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    let url: string | null = null;
+    (async () => {
+      try {
+        // Prefer the dedicated thumbnail if we ever generate one; fall back to content.
+        const thumb = await window.clippy.getThumbnail(id);
+        const bytes = thumb ?? (await window.clippy.getClipContent(id));
+        if (!alive || !bytes || bytes.length === 0) return;
+        const arr = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes as any);
+        const blob = new Blob([arr], { type: 'image/png' });
+        url = URL.createObjectURL(blob);
+        setSrc(url);
+      } catch {}
+    })();
+    return () => {
+      alive = false;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [id]);
+  if (!src) return <div className="image-thumb image-placeholder" />;
+  return <img src={src} className="image-thumb" alt="" />;
+}
+
 const cardCss = `
   .card {
     position: relative;
@@ -98,6 +125,7 @@ const cardCss = `
     cursor: pointer;
     text-align: left;
     font-family: inherit;
+    overflow: hidden;
   }
   .card.state-hover {
     background: var(--cm-surface-raised);
@@ -114,14 +142,18 @@ const cardCss = `
     background: var(--cm-accent);
     border-bottom-left-radius: 1px; border-bottom-right-radius: 1px;
   }
-  .top { display: flex; align-items: center; justify-content: space-between; min-height: 18px; }
+  .top { display: flex; align-items: center; gap: 8px; min-height: 18px; }
   .badge {
     padding: 3px 7px; border-radius: 6px; font-size: 10px; font-weight: 600;
     letter-spacing: 0.4px; line-height: 1; text-transform: uppercase;
+    flex-shrink: 0;
   }
   .source {
+    flex: 1; min-width: 0;
     font-size: 10px; color: var(--cm-text-tertiary);
     font-family: 'Geist Mono', ui-monospace, monospace;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    text-align: right;
   }
   .content { flex: 1; overflow: hidden; min-height: 0; }
   .text, .code {
@@ -134,7 +166,11 @@ const cardCss = `
     line-height: 1.45; white-space: pre; -webkit-line-clamp: 8;
   }
   .image-thumb {
+    display: block;
     width: 100%; height: 100%; border-radius: 8px;
+    object-fit: cover;
+  }
+  .image-placeholder {
     background: linear-gradient(135deg, color-mix(in srgb, var(--cm-accent) 20%, var(--cm-surface-raised)) 0%, var(--cm-surface-raised) 60%);
   }
   .color-swatch {

@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { ClipCard } from '../components/ClipCard';
 import type { ClipDto } from '../../../electron/ipc-types';
 
@@ -26,8 +27,15 @@ export function LayoutMosaic({
   onSelect: (hash: string) => void;
   filterActive?: boolean;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  function onWheel(e: React.WheelEvent<HTMLDivElement>) {
+    if (e.deltaX === 0 && e.deltaY !== 0) {
+      const el = ref.current;
+      if (el) { el.scrollLeft += e.deltaY; e.preventDefault(); }
+    }
+  }
   return (
-    <div className="mosaic">
+    <div className="mosaic" ref={ref} onWheel={onWheel}>
       {clips.map((c, i) => (
         <div key={c.id} style={{ width: widthFor(c, filterActive && i === 0), flexShrink: 0 }}>
           <ClipCard
@@ -40,9 +48,16 @@ export function LayoutMosaic({
       ))}
       <style>{`
         .mosaic {
-          display: flex; gap: 12px; padding: 16px 20px;
-          overflow-x: auto; overflow-y: hidden; height: 100%; align-items: stretch;
+          display: flex; gap: 12px; padding: 0 20px;
+          overflow-x: auto; overflow-y: hidden; height: 100%; align-items: center;
         }
+        .mosaic::-webkit-scrollbar { height: 6px; }
+        .mosaic::-webkit-scrollbar-track { background: transparent; }
+        .mosaic::-webkit-scrollbar-thumb {
+          background: color-mix(in srgb, var(--cm-border-strong) 70%, transparent);
+          border-radius: 3px;
+        }
+        .mosaic::-webkit-scrollbar-thumb:hover { background: var(--cm-text-tertiary); }
       `}</style>
     </div>
   );

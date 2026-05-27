@@ -160,8 +160,8 @@ export function App() {
 
   return (
     <div className="panel">
-      <div className="drag-handle" />
       <header>
+        <span className="brand">Clippy</span>
         <SearchBar
           ref={searchRef}
           value={filter.search}
@@ -254,22 +254,23 @@ const shellCss = `
     display: flex; flex-direction: column; height: 100%;
     background: var(--cm-panel-scrim);
     backdrop-filter: blur(24px) saturate(140%);
-    border-radius: var(--cm-radius-panel);
+    border-radius: var(--cm-radius-panel) var(--cm-radius-panel) 0 0;
     border: 1px solid var(--cm-border-subtle);
+    border-bottom: none;
     color: var(--cm-text); overflow: hidden;
   }
-  .drag-handle {
-    -webkit-app-region: drag;
-    height: 10px; width: 100%; flex-shrink: 0;
-    background: linear-gradient(180deg, rgba(255,255,255,.04), transparent);
-  }
   header {
-    display: flex; align-items: center; gap: 10px;
+    display: flex; align-items: center; gap: 14px;
     height: 48px; padding: 0 16px;
     border-bottom: 1px solid var(--cm-border-subtle); flex-shrink: 0;
+    white-space: nowrap;
+  }
+  header .brand {
+    font-weight: 600; font-size: 13px; color: var(--cm-text);
+    letter-spacing: -0.2px; flex-shrink: 0;
   }
   header .chips {
-    display: flex; gap: 6px; flex: 1; overflow: hidden; min-width: 0;
+    display: flex; gap: 6px; flex: 1; overflow: hidden; min-width: 0; align-items: center;
   }
   .settings-btn {
     width: 32px; height: 32px; border-radius: 8px;

@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { ClipCard, type Density } from '../components/ClipCard';
 import type { ClipDto } from '../../../electron/ipc-types';
 
@@ -12,8 +13,21 @@ export function LayoutCards({
   density?: Density;
   onSelect: (hash: string) => void;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  function onWheel(e: React.WheelEvent<HTMLDivElement>) {
+    // Map vertical wheel to horizontal scroll. Multiplier makes each tick feel
+    // like ~1.5 cards. No CSS smooth-behavior because it queues multiple
+    // animations on rapid wheel and feels laggy.
+    if (e.deltaX === 0 && e.deltaY !== 0) {
+      const el = ref.current;
+      if (el) {
+        el.scrollLeft += e.deltaY * 2;
+        e.preventDefault();
+      }
+    }
+  }
   return (
-    <div className="cards-row">
+    <div className="cards-row" ref={ref} onWheel={onWheel}>
       {clips.map((c) => (
         <ClipCard
           key={c.id}
@@ -23,19 +37,19 @@ export function LayoutCards({
           onSelect={() => onSelect(c.hash)}
         />
       ))}
-      <div className="edge-fade" />
       <style>{`
         .cards-row {
-          display: flex; gap: 12px; padding: 16px 20px;
+          display: flex; gap: 12px; padding: 0 20px;
           overflow-x: auto; overflow-y: hidden; height: 100%;
-          align-items: stretch; scroll-snap-type: x mandatory;
+          align-items: center;
         }
-        .cards-row > .card { scroll-snap-align: start; }
-        .edge-fade {
-          position: sticky; right: 0; top: 0; bottom: 0; width: 60px;
-          pointer-events: none; flex-shrink: 0;
-          background: linear-gradient(to left, var(--cm-panel-scrim), transparent);
+        .cards-row::-webkit-scrollbar { height: 6px; }
+        .cards-row::-webkit-scrollbar-track { background: transparent; }
+        .cards-row::-webkit-scrollbar-thumb {
+          background: color-mix(in srgb, var(--cm-border-strong) 70%, transparent);
+          border-radius: 3px;
         }
+        .cards-row::-webkit-scrollbar-thumb:hover { background: var(--cm-text-tertiary); }
       `}</style>
     </div>
   );

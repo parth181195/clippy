@@ -51,11 +51,32 @@ function loadSettingsFromDb() {
   };
 }
 
+function bottomAnchoredXY(width: number, height: number): { x: number; y: number } {
+  const { screen } = require('electron') as typeof import('electron');
+  const display = screen.getPrimaryDisplay();
+  const { bounds } = display;
+  // Use bounds (full physical screen), not workArea. The panel sits flush
+  // against the bottom of the monitor (bottom corners squared).
+  const result = {
+    x: bounds.x + Math.round((bounds.width - width) / 2),
+    y: bounds.y + bounds.height - height,
+  };
+  return result;
+}
+
 function createWindow() {
   const settings = loadSettingsFromDb();
+  // Full-width like Pano (Clutter.ActorAlign.FILL on the x-axis); the panel
+  // spans the entire monitor width and sits flush against the bottom.
+  const { screen } = require('electron') as typeof import('electron');
+  const display = screen.getPrimaryDisplay();
+  const W = display.bounds.width;
+  const H = 380; // bumped from design's 340 so cards (240) + body padding fit without clipping
+  const { x, y } = bottomAnchoredXY(W, H);
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 340,
+    x, y,
+    width: W,
+    height: H,
     frame: false,
     transparent: settings.windowTransparent,
     backgroundColor: settings.windowTransparent ? '#00000000' : '#0E0E15',
@@ -72,6 +93,40 @@ function createWindow() {
   });
   if (isDev) mainWindow.loadURL(VITE_URL);
   else mainWindow.loadFile(join(__dirname, '..', 'dist', 'index.html'));
+
+  const reanchor = () => {
+    if (!mainWindow) return;
+    try {
+      const [actualW, actualH] = mainWindow.getSize();
+      const targetW = W;
+      const targetH = H;
+      const p = bottomAnchoredXY(targetW, targetH);
+      // setBounds forces both size + position in one call; setPosition alone
+      // sometimes lets the WM keep an oversized width on first show.
+      mainWindow.setBounds({ x: p.x, y: p.y, width: targetW, height: targetH });
+      const fs = require('node:fs') as typeof import('node:fs');
+      const path = require('node:path') as typeof import('node:path');
+      fs.appendFileSync(
+        path.join(app.getPath('userData'), 'clippy', 'dbus.log'),
+        `[${new Date().toISOString()}] [reanchor] actual=${actualW}x${actualH} target=${targetW}x${targetH} → bounds (${p.x},${p.y}) ${targetW}x${targetH}\n`
+      );
+    } catch (e) {
+      console.warn('reanchor failed', e);
+    }
+  };
+
+  // Re-apply on ready-to-show in case Wayland positioned it elsewhere first.
+  mainWindow.once('ready-to-show', reanchor);
+  // Re-anchor every time we show the window so it doesn't drift to wherever
+  // the compositor last placed it.
+  mainWindow.on('show', reanchor);
+
+  // Pano-style click-outside-to-close: when the window loses focus, hide it.
+  // (Implemented via blur event because Electron has no "click outside window"
+  // event for a frameless top-level window.)
+  mainWindow.on('blur', () => {
+    if (mainWindow && mainWindow.isVisible()) mainWindow.hide();
+  });
 
   mainWindow.on('closed', () => {
     mainWindow = null;

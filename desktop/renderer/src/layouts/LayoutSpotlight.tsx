@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import { ClipCard } from '../components/ClipCard';
 import type { ClipDto } from '../../../electron/ipc-types';
 
@@ -74,10 +74,17 @@ export function LayoutSpotlight({
     focus = <div className="empty">No clip focused</div>;
   }
 
+  const thumbsRef = useRef<HTMLDivElement>(null);
+  function onWheel(e: React.WheelEvent<HTMLDivElement>) {
+    if (e.deltaX === 0 && e.deltaY !== 0) {
+      const el = thumbsRef.current;
+      if (el) { el.scrollLeft += e.deltaY; e.preventDefault(); }
+    }
+  }
   return (
     <div className="spotlight">
       <div className="focus">{focus}</div>
-      <div className="thumbs">
+      <div className="thumbs" ref={thumbsRef} onWheel={onWheel}>
         {thumbs.map((clip) => (
           <ClipCard
             key={clip.id}
@@ -143,5 +150,16 @@ const spotlightCss = `
   }
   .meta .spacer { flex: 1; }
   .focus .empty { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--cm-text-tertiary); }
-  .thumbs { flex: 1; display: flex; gap: 8px; padding: 14px 16px; overflow-x: auto; align-items: stretch; }
+  .thumbs {
+    flex: 1; display: flex; gap: 8px; padding: 14px 16px 20px;
+    overflow-x: auto; align-items: stretch;
+    scroll-behavior: smooth;
+  }
+  .thumbs::-webkit-scrollbar { height: 6px; }
+  .thumbs::-webkit-scrollbar-track { background: transparent; }
+  .thumbs::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--cm-border-strong) 70%, transparent);
+    border-radius: 3px;
+  }
+  .thumbs::-webkit-scrollbar-thumb:hover { background: var(--cm-text-tertiary); }
 `;
