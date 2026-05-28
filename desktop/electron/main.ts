@@ -17,6 +17,7 @@ import { installAll as installGnomeShortcuts } from './gnome-shortcut';
 import { SyncService } from './sync/sync-service';
 import { pickColor } from './color-picker';
 import { initSentryMain, setReportingEnabled } from './sentry';
+import { ensureGnomeExtension } from './gnome-extension';
 
 // Initialize crash/error reporting as early as possible (gated at runtime by
 // the user's `errorReporting` setting once the DB loads).
@@ -334,6 +335,11 @@ app.whenReady().then(() => {
   if (settings.autostart) installAutostart();
   createWindow();
   createTray();
+
+  // One-install GNOME integration: drop the bundled extension into the user's
+  // extensions dir and enable it live (Extension-Manager style); notify only if
+  // that can't be done automatically.
+  ensureGnomeExtension().catch((e) => console.warn('gnome-ext setup failed', e));
 
   // Wire clipboard polling pipeline
   const excludedApps = (

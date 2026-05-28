@@ -66,3 +66,4 @@ landing/.firebase/
 *.keystore
 *.jks
 key.properties
+desktop/extension-bundle/
