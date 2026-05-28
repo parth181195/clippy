@@ -4,9 +4,9 @@
   "description": "LAN-only clipboard manager",
   "author": {
     "name": "Parth",
-    "email": "parthrock181195@gmail.com"
+    "email": "parthjansari@outlook.com"
   },
-  "homepage": "https://github.com/parth/clippy",
+  "homepage": "https://github.com/parth181195/clippy",
   "main": "dist-electron/main.js",
   "type": "module",
   "scripts": {
