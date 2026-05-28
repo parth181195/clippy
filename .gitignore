@@ -55,3 +55,14 @@ landing/node_modules/
 landing/dist/
 landing/.astro/
 landing/.firebase/
+
+# Scheduler / tooling state
+.claude/
+
+# Stray release artifacts (live in desktop/release + GitHub Releases, never in git)
+/clippy-*.apk
+/clippy_*.deb
+*.apk
+*.keystore
+*.jks
+key.properties
