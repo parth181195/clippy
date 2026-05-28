@@ -1,12 +1,28 @@
 import { ipcMain } from 'electron';
+import { execFile } from 'node:child_process';
 import type { Db } from './db';
 import {
   DEFAULT_SETTINGS,
   IPC,
+  type ClipActionDto,
   type ClipDto,
   type ListClipsArgs,
   type Settings,
 } from './ipc-types';
+
+function actionRowToDto(r: any): ClipActionDto {
+  let params: { command?: string; args?: string[] } = {};
+  try { params = JSON.parse(r.params_json || '{}'); } catch {}
+  return {
+    id: r.id,
+    contentType: r.content_type,
+    label: r.label,
+    kind: r.kind,
+    command: params.command ?? null,
+    args: params.args ?? [],
+    isDefault: r.is_default === 1,
+  };
+}
 
 // Convert snake_case DB row → camelCase DTO for the renderer.
 function rowToDto(r: any): ClipDto {
@@ -186,6 +202,48 @@ export function registerIpc(opts: {
   });
   ipcMain.handle(IPC.exclusionsRemove, (_e, appId: string): void => {
     raw.prepare('DELETE FROM excluded_apps WHERE app_id = ?').run(appId);
+  });
+
+  ipcMain.handle(IPC.actionsList, (_e, contentType: string): ClipActionDto[] =>
+    (raw.prepare('SELECT * FROM clip_actions WHERE content_type = ? ORDER BY is_default DESC, sort_order ASC')
+      .all(contentType) as any[]).map(actionRowToDto)
+  );
+
+  ipcMain.handle(IPC.actionAdd, (_e, contentType: string, label: string, command: string, args: string[]): void => {
+    const next = (raw.prepare('SELECT COALESCE(MAX(sort_order), 0) + 1 AS n FROM clip_actions WHERE content_type = ?')
+      .get(contentType) as { n: number }).n;
+    raw.prepare(
+      `INSERT INTO clip_actions(content_type, label, kind, params_json, is_default, sort_order)
+       VALUES (?, ?, 'run_command', ?, 0, ?)`
+    ).run(contentType, label.trim() || command, JSON.stringify({ command: command.trim(), args }), next);
+  });
+
+  ipcMain.handle(IPC.actionRemove, (_e, id: number): void => {
+    raw.prepare('DELETE FROM clip_actions WHERE id = ?').run(id);
+  });
+
+  ipcMain.handle(IPC.actionRun, async (_e, clipId: number, actionId: number): Promise<{ ok: boolean; error?: string }> => {
+    const action = raw.prepare('SELECT * FROM clip_actions WHERE id = ?').get(actionId) as any;
+    if (!action) return { ok: false, error: 'action not found' };
+    const clip = raw.prepare('SELECT content FROM clips WHERE id = ?').get(clipId) as { content: Buffer } | undefined;
+    if (!clip) return { ok: false, error: 'clip not found' };
+    const content = clip.content.toString('utf8');
+    const dto = actionRowToDto(action);
+    return new Promise((resolve) => {
+      const done = (error?: string) => resolve(error ? { ok: false, error } : { ok: true });
+      try {
+        if (dto.kind === 'open_url') {
+          execFile('xdg-open', [content], { timeout: 5000 }, (e) => done(e ? e.message : undefined));
+        } else if (dto.kind === 'run_command' && dto.command) {
+          // Content passed as a single positional arg — no shell, no injection.
+          execFile(dto.command, [...dto.args, content], { timeout: 5000 }, (e) => done(e ? e.message : undefined));
+        } else {
+          done('unsupported action');
+        }
+      } catch (e) {
+        done((e as Error).message);
+      }
+    });
   });
 }
 

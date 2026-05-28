@@ -322,6 +322,11 @@ export function App() {
               onToggleFavorite: () => toggleFavorite(c.id),
               onTogglePin: () => togglePin(c.id),
               onDelete: () => deleteClip(c.id, false),
+              onRunAction: async (actionId) => {
+                const r = await window.clippy.actionRun(c.id, actionId);
+                if (!r.ok) showToast(`Action failed: ${r.error ?? 'unknown'}`);
+                else { try { await window.clippy.hidePanel(); } catch {} }
+              },
             })}
             canSend={(c) => conn.state === 'connected' && (c.contentType === 'image' || c.contentType === 'file')}
           />

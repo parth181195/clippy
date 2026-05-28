@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Star, Send, Pin, Trash2, Pencil } from 'lucide-react';
+import { Star, Send, Pin, Trash2, Pencil, ExternalLink, Terminal } from 'lucide-react';
 import * as Menu from '@radix-ui/react-context-menu';
-import type { ClipDto } from '../../../electron/ipc-types';
+import type { ClipActionDto, ClipDto } from '../../../electron/ipc-types';
 import { SourceIcon } from './SourceIcon';
 
 const BASH_KW = /\b(sudo|cd|ls|cat|grep|curl|echo|export|apt|install|docker|compose|up|down|run|build|exec)\b/;
@@ -74,6 +74,7 @@ export interface ClipCardActions {
   onTogglePin?: () => void;
   onDelete?: () => void;
   onEdit?: () => void;
+  onRunAction?: (actionId: number) => void;
 }
 
 export function ClipCard({
@@ -93,6 +94,7 @@ export function ClipCard({
 }) {
   const s = SIZES[density];
   const ct = clip.contentType;
+  const [clipActions, setClipActions] = useState<ClipActionDto[]>([]);
 
   let content: React.ReactNode;
   if (ct === 'image') content = <ImageThumb id={clip.id} />;
@@ -186,11 +188,32 @@ export function ClipCard({
 
   if (!actions) return cardBtn;
 
+  const onMenuOpen = (open: boolean) => {
+    if (open && actions.onRunAction) {
+      window.clippy.actionsList(ct).then(setClipActions).catch(() => setClipActions([]));
+    }
+  };
+
   return (
-    <Menu.Root>
+    <Menu.Root onOpenChange={onMenuOpen}>
       <Menu.Trigger asChild>{cardBtn}</Menu.Trigger>
       <Menu.Portal>
         <Menu.Content className="cm-ctx" collisionPadding={8}>
+          {actions.onRunAction && clipActions.length > 0 && (
+            <>
+              {clipActions.map((a) => (
+                <Menu.Item
+                  key={a.id}
+                  className="cm-ctx-item"
+                  onSelect={() => actions.onRunAction!(a.id)}
+                >
+                  {a.kind === 'open_url' ? <ExternalLink size={13} strokeWidth={2} /> : <Terminal size={13} strokeWidth={2} />}
+                  <span>{a.label}</span>
+                </Menu.Item>
+              ))}
+              <Menu.Separator className="cm-ctx-sep" />
+            </>
+          )}
           {actions.onSend && (
             <Menu.Item
               className="cm-ctx-item"

@@ -86,6 +86,11 @@ export const IPC = {
   exclusionsList: 'excl:list',
   exclusionsAdd: 'excl:add',
   exclusionsRemove: 'excl:remove',
+  // Per-type actions
+  actionsList: 'action:list',
+  actionRun: 'action:run',
+  actionAdd: 'action:add',
+  actionRemove: 'action:remove',
   // Events from main → renderer
   EVT_CLIP_NEW: 'evt:clip-new',
   EVT_INCOGNITO_CHANGED: 'evt:incognito-changed',
@@ -109,6 +114,16 @@ export type ConnState = 'unpaired' | 'connecting' | 'connected' | 'disconnected'
 export interface ConnStatus {
   state: ConnState;
   deviceName: string | null;
+}
+
+export interface ClipActionDto {
+  id: number;
+  contentType: string;
+  label: string;
+  kind: 'open_url' | 'run_command';
+  command: string | null;
+  args: string[];
+  isDefault: boolean;
 }
 
 export interface PairingResult {

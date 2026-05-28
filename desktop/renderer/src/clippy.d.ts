@@ -1,7 +1,7 @@
 // Types for the preload-exposed `window.clippy` API.
 // Mirror of electron/preload.ts. Keep in sync.
 
-import type { ClipDto, ConnStatus, ListClipsArgs, PairingResult, Settings } from '../../electron/ipc-types.js';
+import type { ClipActionDto, ClipDto, ConnStatus, ListClipsArgs, PairingResult, Settings, TransferProgressEvent } from '../../electron/ipc-types.js';
 
 export interface ClippyApi {
   listClips(args?: ListClipsArgs): Promise<ClipDto[]>;
@@ -24,6 +24,15 @@ export interface ClippyApi {
   onClipNew(cb: (id: number) => void): () => void;
   onIncognitoChanged(cb: (on: boolean) => void): () => void;
   onConnState(cb: (s: ConnStatus) => void): () => void;
+  onTransferProgress(cb: (p: TransferProgressEvent) => void): () => void;
+  sendClipToPeer(clipId: number): Promise<string | null>;
+  exclusionsList(): Promise<string[]>;
+  exclusionsAdd(appId: string): Promise<void>;
+  exclusionsRemove(appId: string): Promise<void>;
+  actionsList(contentType: string): Promise<ClipActionDto[]>;
+  actionRun(clipId: number, actionId: number): Promise<{ ok: boolean; error?: string }>;
+  actionAdd(contentType: string, label: string, command: string, args: string[]): Promise<void>;
+  actionRemove(id: number): Promise<void>;
 }
 
 declare global {

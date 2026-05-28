@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { IPC, type ClipDto, type ConnStatus, type ListClipsArgs, type PairingResult, type Settings, type TransferProgressEvent } from './ipc-types';
+import { IPC, type ClipActionDto, type ClipDto, type ConnStatus, type ListClipsArgs, type PairingResult, type Settings, type TransferProgressEvent } from './ipc-types';
 
 const api = {
   listClips: (args?: ListClipsArgs) => ipcRenderer.invoke(IPC.listClips, args ?? {}) as Promise<ClipDto[]>,
@@ -43,6 +43,14 @@ const api = {
   exclusionsList: () => ipcRenderer.invoke(IPC.exclusionsList) as Promise<string[]>,
   exclusionsAdd: (appId: string) => ipcRenderer.invoke(IPC.exclusionsAdd, appId) as Promise<void>,
   exclusionsRemove: (appId: string) => ipcRenderer.invoke(IPC.exclusionsRemove, appId) as Promise<void>,
+
+  actionsList: (contentType: string) =>
+    ipcRenderer.invoke(IPC.actionsList, contentType) as Promise<ClipActionDto[]>,
+  actionRun: (clipId: number, actionId: number) =>
+    ipcRenderer.invoke(IPC.actionRun, clipId, actionId) as Promise<{ ok: boolean; error?: string }>,
+  actionAdd: (contentType: string, label: string, command: string, args: string[]) =>
+    ipcRenderer.invoke(IPC.actionAdd, contentType, label, command, args) as Promise<void>,
+  actionRemove: (id: number) => ipcRenderer.invoke(IPC.actionRemove, id) as Promise<void>,
   onConnState: (cb: (s: ConnStatus) => void) => {
     const h = (_e: any, s: ConnStatus) => cb(s);
     ipcRenderer.on(IPC.EVT_CONN_STATE, h);

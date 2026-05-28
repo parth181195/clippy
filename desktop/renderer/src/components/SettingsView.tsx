@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Plus, Smartphone, Unlink, X } from 'lucide-react';
+import { ExternalLink, Plus, Smartphone, Terminal, Unlink, X } from 'lucide-react';
 import { useSettingsStore } from '../lib/store';
-import type { ConnStatus, Settings } from '../../../electron/ipc-types';
+import type { ClipActionDto, ConnStatus, Settings } from '../../../electron/ipc-types';
 import { Switch } from './Switch';
 
 type Section = 'general' | 'hotkeys' | 'exclusions' | 'layout' | 'devices' | 'actions' | 'about';
@@ -35,12 +35,7 @@ export function SettingsView() {
         {section === 'hotkeys' && <Hotkeys s={s} save={save} />}
         {section === 'exclusions' && <Exclusions />}
         {section === 'devices' && <Devices />}
-        {section === 'actions' && (
-          <>
-            <h3>Per-type Actions</h3>
-            <p className="hint">Editor lands in a follow-up.</p>
-          </>
-        )}
+        {section === 'actions' && <Actions />}
         {section === 'about' && (
           <>
             <h3>About</h3>
@@ -52,6 +47,116 @@ export function SettingsView() {
     </div>
   );
 }
+
+const ACTION_TYPES = ['text', 'link', 'code', 'color', 'emoji'];
+
+function Actions() {
+  const [type, setType] = useState('link');
+  const [list, setList] = useState<ClipActionDto[]>([]);
+  const [label, setLabel] = useState('');
+  const [command, setCommand] = useState('');
+
+  async function refresh() {
+    setList(await window.clippy.actionsList(type));
+  }
+  useEffect(() => { void refresh(); /* eslint-disable-next-line */ }, [type]);
+
+  async function add() {
+    const cmd = command.trim();
+    if (!cmd) return;
+    await window.clippy.actionAdd(type, label.trim() || cmd, cmd, []);
+    setLabel(''); setCommand('');
+    await refresh();
+  }
+
+  return (
+    <>
+      <h3>Per-type Actions</h3>
+      <p className="hint">
+        Actions show in a clip's right-click menu. The clip's text is passed to your
+        command as the final argument (no shell, so it's injection-safe).
+        e.g. command <code>code</code> opens the clip in VS Code.
+      </p>
+      <div className="act-types">
+        {ACTION_TYPES.map((t) => (
+          <button key={t} className={`act-type ${t === type ? 'active' : ''}`} onClick={() => setType(t)} type="button">
+            {t}
+          </button>
+        ))}
+      </div>
+      <div className="act-list">
+        {list.length === 0 && <div className="act-empty">No actions for {type}.</div>}
+        {list.map((a) => (
+          <div key={a.id} className="act-row">
+            {a.kind === 'open_url' ? <ExternalLink size={14} /> : <Terminal size={14} />}
+            <div className="act-meta">
+              <div className="act-label">{a.label}</div>
+              <div className="act-cmd">
+                {a.kind === 'open_url' ? 'xdg-open <url>' : `${a.command} … <text>`}
+              </div>
+            </div>
+            {a.kind === 'open_url' ? (
+              <span className="act-builtin">built-in</span>
+            ) : (
+              <button className="act-del" type="button" onClick={() => window.clippy.actionRemove(a.id).then(refresh)} aria-label="Remove">
+                <X size={13} strokeWidth={2.5} />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="act-add">
+        <input type="text" placeholder="label (optional)" value={label} onChange={(e) => setLabel(e.target.value)} />
+        <input type="text" placeholder="command e.g. code" value={command}
+          onChange={(e) => setCommand(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') void add(); }} />
+        <button type="button" className="act-add-btn" onClick={add} disabled={!command.trim()}>
+          <Plus size={13} strokeWidth={2.4} /> Add
+        </button>
+      </div>
+      <style>{actionsCss}</style>
+    </>
+  );
+}
+
+const actionsCss = `
+  .act-types { display: flex; gap: 6px; margin: 12px 0 16px; flex-wrap: wrap; }
+  .act-type {
+    padding: 5px 12px; border-radius: 14px; cursor: pointer;
+    background: transparent; color: var(--cm-text-secondary);
+    border: 1px solid var(--cm-border-subtle);
+    font-family: inherit; font-size: 12px; text-transform: capitalize;
+  }
+  .act-type.active { background: var(--cm-surface-raised); color: var(--cm-text); border-color: var(--cm-border-strong); }
+  .act-list { display: flex; flex-direction: column; gap: 6px; }
+  .act-empty { color: var(--cm-text-tertiary); font-size: 12px; padding: 6px 0; }
+  .act-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px; border-radius: 9px;
+    background: var(--cm-surface-raised); border: 1px solid var(--cm-border-subtle);
+    color: var(--cm-text);
+  }
+  .act-meta { flex: 1; min-width: 0; }
+  .act-label { font-size: 13px; font-weight: 500; }
+  .act-cmd { font-size: 11px; color: var(--cm-text-tertiary); font-family: 'Geist Mono', ui-monospace, monospace; margin-top: 1px; }
+  .act-builtin { font-size: 10px; color: var(--cm-text-tertiary); font-family: 'Geist Mono', ui-monospace, monospace; }
+  .act-del {
+    width: 20px; height: 20px; border-radius: 10px; border: none; cursor: pointer;
+    background: transparent; color: var(--cm-text-secondary);
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .act-del:hover { background: color-mix(in srgb, #f87171 18%, transparent); color: #f87171; }
+  .act-add { display: flex; gap: 8px; margin-top: 16px; }
+  .act-add input:first-child { width: 140px; flex: none; }
+  .act-add input:nth-child(2) { flex: 1; }
+  .act-add-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 12px; border-radius: 7px;
+    background: var(--cm-accent); color: white; border: none;
+    font-family: inherit; font-size: 12px; font-weight: 500; cursor: pointer;
+  }
+  .act-add-btn:disabled { opacity: .4; cursor: not-allowed; }
+`;
 
 function Exclusions() {
   const [apps, setApps] = useState<string[]>([]);
