@@ -12,7 +12,11 @@ const brand = join(repoRoot, 'assets', 'brand');
 
 function render(svgFile, width) {
   const svg = readFileSync(join(brand, svgFile), 'utf8');
-  const r = new Resvg(svg, { fitTo: { mode: 'width', value: width } });
+  const r = new Resvg(svg, {
+    fitTo: { mode: 'width', value: width },
+    // Load Geist (bundled with the desktop app) so text in og.svg renders on-brand.
+    font: { fontDirs: [join(repoRoot, 'desktop', 'assets', 'fonts')], loadSystemFonts: true, defaultFontFamily: 'Geist' },
+  });
   return r.render().asPng();
 }
 
@@ -34,4 +38,6 @@ emit('icon-foreground.svg', 32, join(desktopIcons, 'tray.png'));
 emit('icon.svg', 1024, join(mobileIcons, 'icon.png'));
 emit('icon-foreground.svg', 1024, join(mobileIcons, 'icon_foreground.png'));
 emit('icon-bg.svg', 1024, join(mobileIcons, 'icon_background.png'));
+// Landing: 1200x630 social card.
+emit('og.svg', 1200, join(repoRoot, 'landing', 'public', 'og.png'));
 console.log('Done.');

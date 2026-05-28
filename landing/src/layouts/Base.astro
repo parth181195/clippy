@@ -3,6 +3,26 @@ import '../styles/global.css';
 const title = 'Clippy — a clipboard manager that takes copy-paste seriously';
 const desc =
   'A LAN-only clipboard manager + small-file sharer for Ubuntu and Android. Remembers every clip, searches them all, and syncs to your phone — no cloud, no account.';
+
+// Resolved against `site` in astro.config.mjs. Update that one value to the real
+// domain after deploy and canonical/OG/sitemap all follow.
+const site = Astro.site ?? new URL('https://clippy.web.app');
+const canonical = new URL(Astro.url.pathname, site).href;
+const ogImage = new URL('/og.png', site).href;
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'Clippy',
+  applicationCategory: 'UtilitiesApplication',
+  operatingSystem: 'Ubuntu, Android',
+  description: desc,
+  url: site.href,
+  softwareVersion: '0.1.0',
+  license: 'https://www.gnu.org/licenses/gpl-3.0.html',
+  isAccessibleForFree: true,
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+};
 ---
 
 <!doctype html>
@@ -12,18 +32,35 @@ const desc =
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
     <meta name="description" content={desc} />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href={canonical} />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <meta name="theme-color" content="#0E0E15" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Clippy" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={desc} />
-    <meta property="og:image" content="/icon.png" />
-    <meta property="og:type" content="website" />
-    <meta name="theme-color" content="#0E0E15" />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={desc} />
+    <meta name="twitter:image" content={ogImage} />
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500&display=swap"
     />
+
+    <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
   </head>
   <body>
     <slot />
