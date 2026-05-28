@@ -85,7 +85,8 @@
         "deb"
       ],
       "category": "Utility",
-      "icon": "assets/icons"
+      "icon": "assets/icons",
+      "executableArgs": ["--no-sandbox"]
     }
   }
 }

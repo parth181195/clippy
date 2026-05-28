@@ -12,10 +12,19 @@ import { join } from 'node:path';
 const UUID = 'clippy@io.clippy';
 const ENABLED = 1; // org.gnome.Shell ExtensionState.ENABLED
 
-function bundledDir(): string {
-  return app.isPackaged
-    ? join(process.resourcesPath, 'gnome-extension')
-    : join(app.getAppPath(), '..', 'extension');
+/** Resolve the bundled extension dir by probing candidates (don't trust app.isPackaged). */
+function bundledDir(): string | null {
+  const candidates = [
+    join(process.resourcesPath, 'gnome-extension'), // packaged extraResources
+    join(app.getAppPath(), '..', 'extension'), // dev: getAppPath() = desktop/
+    join(app.getAppPath(), '..', '..', 'extension'),
+  ];
+  for (const c of candidates) {
+    try {
+      if (existsSync(join(c, 'metadata.json'))) return c;
+    } catch {}
+  }
+  return null;
 }
 
 function versionName(metaPath: string): string | null {
@@ -29,8 +38,11 @@ function versionName(metaPath: string): string | null {
 /** Copy the bundled extension into ~/.local/share/... if missing/outdated. Returns true if present after. */
 function installFiles(): boolean {
   const src = bundledDir();
+  if (!src) {
+    console.warn('[gnome-ext] bundled extension not found in any candidate path');
+    return false;
+  }
   const srcMeta = join(src, 'metadata.json');
-  if (!existsSync(srcMeta)) return false;
   const dest = join(homedir(), '.local', 'share', 'gnome-shell', 'extensions', UUID);
   const destMeta = join(dest, 'metadata.json');
   if (!existsSync(destMeta) || versionName(destMeta) !== versionName(srcMeta)) {
@@ -38,6 +50,7 @@ function installFiles(): boolean {
       recursive: true,
       filter: (s) => !/(?:^|\/)(Makefile|README\.md|clippy\.zip|\.git)(?:$|\/)/.test(s),
     });
+    console.log('[gnome-ext] installed extension from', src, '→', dest);
   }
   return existsSync(destMeta);
 }
