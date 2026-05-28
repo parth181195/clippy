@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Palette, Settings as SettingsIcon, Smartphone, Star, WifiOff, Zap } from 'lucide-react';
 import { PanelLayout } from './components/PanelLayout';
 import { Kbd } from './components/Kbd';
+import { ColorDetail } from './components/ColorDetail';
 import { SearchBar, type SearchBarHandle } from './components/SearchBar';
 import { FilterChip } from './components/FilterChip';
 import { SettingsView } from './components/SettingsView';
@@ -17,7 +18,7 @@ import {
 } from './lib/store';
 import './clippy.d';
 
-type Mode = 'list' | 'settings' | 'edit' | 'pair';
+type Mode = 'list' | 'settings' | 'edit' | 'pair' | 'color';
 
 const TYPES = ['text', 'image', 'link', 'code', 'color', 'emoji', 'file'] as const;
 
@@ -148,7 +149,12 @@ export function App() {
   function openEditor() {
     const c = clips[selectedIndex()];
     if (!c) return;
-    if (!['text', 'link', 'code', 'color', 'emoji'].includes(c.contentType)) return;
+    if (c.contentType === 'color') {
+      setEditingId(c.id);
+      setMode('color');
+      return;
+    }
+    if (!['text', 'link', 'code', 'emoji'].includes(c.contentType)) return;
     setEditingId(c.id);
     setMode('edit');
   }
@@ -228,7 +234,7 @@ export function App() {
             <ArrowLeft size={16} strokeWidth={2} />
           </button>
         )}
-        <span className="brand">Clippy{mode !== 'list' && ` · ${mode === 'pair' ? 'Pair device' : mode === 'settings' ? 'Settings' : 'Edit'}`}</span>
+        <span className="brand">Clippy{mode !== 'list' && ` · ${mode === 'pair' ? 'Pair device' : mode === 'settings' ? 'Settings' : mode === 'color' ? 'Color' : 'Edit'}`}</span>
         <SearchBar
           ref={searchRef}
           value={filter.search}
@@ -292,6 +298,12 @@ export function App() {
           <PairingView onClose={() => setMode('list')} />
         ) : mode === 'settings' ? (
           <SettingsView />
+        ) : mode === 'color' && selectedClipForEdit ? (
+          <ColorDetail
+            clip={selectedClipForEdit}
+            onCopied={(label) => showToast(`Copied ${label}`)}
+            onBack={() => { setMode('list'); setEditingId(null); }}
+          />
         ) : mode === 'edit' && selectedClipForEdit ? (
           <EditPane
             clip={selectedClipForEdit}

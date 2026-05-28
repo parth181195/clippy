@@ -34,6 +34,7 @@ export interface ClippyApi {
   actionAdd(contentType: string, label: string, command: string, args: string[]): Promise<void>;
   actionRemove(id: number): Promise<void>;
   pickColor(): Promise<string | null>;
+  copyText(text: string): Promise<void>;
 }
 
 declare global {

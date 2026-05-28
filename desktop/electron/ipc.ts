@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron';
+import { ipcMain, clipboard } from 'electron';
 import { execFile } from 'node:child_process';
 import type { Db } from './db';
 import {
@@ -224,6 +224,7 @@ export function registerIpc(opts: {
   });
 
   ipcMain.handle(IPC.pickColor, () => onPickColor());
+  ipcMain.handle(IPC.copyText, (_e, text: string) => { clipboard.writeText(text); });
 
   ipcMain.handle(IPC.actionRun, async (_e, clipId: number, actionId: number): Promise<{ ok: boolean; error?: string }> => {
     const action = raw.prepare('SELECT * FROM clip_actions WHERE id = ?').get(actionId) as any;
