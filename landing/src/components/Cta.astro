@@ -6,12 +6,18 @@ import Icon from './Icon.astro';
   <div class="glow"></div>
   <div class="inner">
     <h2>A few hundred clips a day.<br /><span class="accent">Stop losing them.</span></h2>
-    <p>Clippy is free and open source. Invite-only while it&apos;s in beta — grab a build below.</p>
+    <p>Clippy is free and open source. Grab a build below and pair it with your phone in under a minute.</p>
     <div class="ctas">
-      <Button primary large href="/downloads/clippy_0.1.0_amd64.deb"><Icon name="download" size={16} /> Download for Ubuntu</Button>
-      <Button ghost large href="/downloads/clippy-0.1.0.apk">Get on Android</Button>
+      <Button primary large href="https://github.com/parth181195/clippy/releases/download/v0.1.0/clippy_0.1.0_amd64.deb"><Icon name="download" size={16} /> Download for Ubuntu</Button>
+      <Button ghost large href="https://github.com/parth181195/clippy/releases/download/v0.1.0/clippy-0.1.0.apk">Get on Android</Button>
     </div>
     <div class="meta mono">Ubuntu 22.04+ · ~78 MB .deb · Android APK · GPLv3</div>
+
+    <div class="beta-note">
+      <strong>Heads up — this is a beta.</strong> You may hit rough edges. Found a bug?
+      <a href="https://github.com/parth181195/clippy/issues/new?labels=bug" target="_blank" rel="noopener">Open an issue</a>
+      or <a href="mailto:parthjansari@outlook.com?subject=Clippy%20beta%20feedback">email us</a> — we&apos;ll fix it.
+    </div>
   </div>
 </section>
 <style>
@@ -23,5 +29,13 @@ import Icon from './Icon.astro';
   p { margin: 28px auto 0; max-width: 540px; font-size: 18px; line-height: 1.5; color: var(--text-secondary); }
   .ctas { margin-top: 40px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
   .meta { margin-top: 20px; font-size: 12px; color: var(--text-tertiary); }
+  .beta-note {
+    margin: 28px auto 0; max-width: 520px;
+    padding: 12px 18px; border-radius: 12px;
+    background: rgba(233, 86, 120, 0.07); border: 1px solid rgba(233, 86, 120, 0.27);
+    font-size: 13.5px; line-height: 1.5; color: var(--text-secondary);
+  }
+  .beta-note strong { color: var(--text); font-weight: 600; }
+  .beta-note a { color: var(--accent); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
   @media (max-width: 640px) { .cta { padding: 120px 20px 100px; } }
 </style>

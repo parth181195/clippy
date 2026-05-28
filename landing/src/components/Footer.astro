@@ -1,10 +1,11 @@
 ---
 import Logo from './Logo.astro';
 
+const REPO = 'https://github.com/parth181195/clippy';
 const cols = [
   { title: 'Product', items: [['Features', '#features'], ['Privacy', '#privacy'], ['Hotkeys', '#hotkeys'], ['What ships', '#compare']] },
-  { title: 'Download', items: [['Ubuntu .deb', '/downloads/clippy_0.1.0_amd64.deb'], ['Android APK', '/downloads/clippy-0.1.0.apk'], ['GNOME extension', '#github']] },
-  { title: 'Project', items: [['GitHub', '#github'], ['License (GPLv3)', '#github'], ['Protocol', '#github']] },
+  { title: 'Download', items: [['Ubuntu .deb', `${REPO}/releases/download/v0.1.0/clippy_0.1.0_amd64.deb`], ['Android APK', `${REPO}/releases/download/v0.1.0/clippy-0.1.0.apk`], ['GNOME extension', `${REPO}/tree/main/extension`]] },
+  { title: 'Project', items: [['GitHub', REPO], ['Report an issue', `${REPO}/issues`], ['License (GPLv3)', `${REPO}/blob/main/LICENSE`]] },
 ];
 ---
 <footer class="footer" id="github">
@@ -19,7 +20,9 @@ const cols = [
         <div class="col">
           <div class="ct mono">{c.title.toUpperCase()}</div>
           <div class="links">
-            {c.items.map(([label, href]) => <a href={href}>{label}</a>)}
+            {c.items.map(([label, href]) => (
+              <a href={href} target={href.startsWith('http') ? '_blank' : undefined} rel={href.startsWith('http') ? 'noopener' : undefined}>{label}</a>
+            ))}
           </div>
         </div>
       ))}
@@ -29,7 +32,7 @@ const cols = [
       <div class="status mono">
         <span>v0.1.0</span>
         <span class="sep">·</span>
-        <span class="beta"><span class="bdot"></span> invite-only beta</span>
+        <span class="beta"><span class="bdot"></span> open beta</span>
       </div>
     </div>
   </div>
