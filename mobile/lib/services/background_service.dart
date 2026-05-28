@@ -70,7 +70,7 @@ Future<void> _onStart(ServiceInstance service) async {
   // launch main.dart sends 'app_foreground' immediately, which cancels this
   // grace timer so the bg stays idle. But if we started from boot with no UI,
   // nothing sends that — so after a grace period we connect ourselves.
-  Timer? bootConnect = Timer(const Duration(seconds: 4), () => loop.start());
+  Timer? bootConnect = Timer(const Duration(seconds: 8), () => loop.start());
   void cancelBoot() { bootConnect?.cancel(); bootConnect = null; }
 
   service.on('app_foreground').listen((_) { cancelBoot(); loop.stop(); });
@@ -127,6 +127,7 @@ class _BgSyncLoop {
     try {
       ch = IOWebSocketChannel.connect(Uri.parse('ws://${_paired!.host}:${_paired!.port}'));
       _channel = ch;
+      ch.sink.done.catchError((_) {});
       ch.stream.listen(
         _onMessage,
         onDone: () => _onDisconnect(ch!),

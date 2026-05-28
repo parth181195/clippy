@@ -20,7 +20,12 @@ Future<void> main() async {
   final bg = FlutterBackgroundService();
   // We're the foreground UI → own the single-peer WS; tell the bg isolate to
   // back off so they don't fight over the desktop's one connection slot.
+  // Re-send a couple of times because the bg isolate's listener may not be
+  // registered yet at cold start (the first invoke would otherwise be lost,
+  // letting the bg's boot-grace timer connect and fight the foreground).
   bg.invoke('app_foreground');
+  Future.delayed(const Duration(seconds: 1), () => bg.invoke('app_foreground'));
+  Future.delayed(const Duration(seconds: 3), () => bg.invoke('app_foreground'));
   await SyncService.instance.start();
   // Background isolate tells us when it received a clip → refresh foreground UI.
   bg.on('clip_received').listen((_) => SyncService.instance.notifyExternalChange());

@@ -9,13 +9,15 @@ export function LayoutCards({
   onSelect,
   buildActions,
   canSend,
+  multiSelected,
 }: {
   clips: ClipDto[];
   selectedHash: string | null;
   density?: Density;
-  onSelect: (hash: string) => void;
+  onSelect: (hash: string, mod: { ctrlKey: boolean; metaKey: boolean }) => void;
   buildActions?: (clip: ClipDto) => ClipCardActions;
   canSend?: (clip: ClipDto) => boolean;
+  multiSelected?: Set<string>;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   function onWheel(e: React.WheelEvent<HTMLDivElement>) {
@@ -38,9 +40,10 @@ export function LayoutCards({
           clip={c}
           density={density}
           state={c.hash === selectedHash ? 'selected' : 'default'}
-          onSelect={() => onSelect(c.hash)}
+          onSelect={(mod) => onSelect(c.hash, mod)}
           actions={buildActions?.(c)}
           canSend={canSend?.(c) ?? false}
+          multiSelected={multiSelected?.has(c.hash) ?? false}
         />
       ))}
       <style>{`

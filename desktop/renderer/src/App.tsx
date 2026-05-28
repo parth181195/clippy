@@ -41,6 +41,7 @@ export function App() {
   const [conn, setConn] = useState<ConnStatus>({ state: 'unpaired', deviceName: null });
   const [toast, setToast] = useState<string | null>(null);
   const [transfers, setTransfers] = useState<TransferProgressEvent[]>([]);
+  const [multiSel, setMultiSel] = useState<Set<string>>(new Set());
   const searchRef = useRef<SearchBarHandle>(null);
 
   // Initial load
@@ -96,7 +97,33 @@ export function App() {
     setByHash(clips[next].hash);
   }
 
+  function onCardSelect(hash: string, mod?: { ctrlKey: boolean; metaKey: boolean }) {
+    if (mod && (mod.ctrlKey || mod.metaKey)) {
+      // Ctrl/Cmd-click toggles the clip into the multi-paste selection.
+      setMultiSel((prev) => {
+        const next = new Set(prev);
+        next.has(hash) ? next.delete(hash) : next.add(hash);
+        return next;
+      });
+      return;
+    }
+    // Plain click: single-select + clear any multi-selection.
+    if (multiSel.size) setMultiSel(new Set());
+    setByHash(hash);
+  }
+
   async function pasteSelected(shift: boolean) {
+    // Multi-paste: join selected clips (DB order) when ≥1 is multi-selected.
+    if (multiSel.size > 0) {
+      const ids = clips.filter((c) => multiSel.has(c.hash)).map((c) => c.id);
+      if (ids.length > 0) {
+        try { await window.clippy.hidePanel(); } catch {}
+        await new Promise((r) => setTimeout(r, 80));
+        try { await window.clippy.pasteManyById(ids, shift); } catch (e) { console.error('paste-many failed', e); }
+        setMultiSel(new Set());
+        return;
+      }
+    }
     const i = selectedIndex();
     const c = i >= 0 ? clips[i] : clips[0];
     if (!c) return;
@@ -172,6 +199,8 @@ export function App() {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.key === 'Escape') {
         e.preventDefault();
+        // First Escape clears a multi-selection; second hides the panel.
+        if (multiSel.size > 0) { setMultiSel(new Set()); return; }
         try { await window.clippy.hidePanel(); } catch {}
       } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
         e.preventDefault();
@@ -216,7 +245,7 @@ export function App() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, clips, selectedHash, filter]);
+  }, [mode, clips, selectedHash, filter, multiSel]);
 
   const selectedClipForEdit = clips.find((c) => c.id === editingId) ?? null;
 
@@ -332,7 +361,8 @@ export function App() {
               type: filter.type,
               favoritesOnly: filter.favoritesOnly,
             }}
-            onSelect={(h) => setByHash(h)}
+            onSelect={onCardSelect}
+            multiSelected={multiSel}
             buildActions={(c) => ({
               onSend: async () => {
                 setByHash(c.hash);
@@ -359,17 +389,20 @@ export function App() {
         ) : null}
       </main>
       <footer>
-        <span>{clips.length} items</span>
+        {multiSel.size > 0 ? (
+          <span className="multi-count">{multiSel.size} selected · <Kbd size="xs">↵</Kbd> paste all · <Kbd size="xs">Esc</Kbd> clear</span>
+        ) : (
+          <span>{clips.length} items</span>
+        )}
         <span className="dot">·</span>
         <ConnIndicator conn={conn} onPair={() => setMode('pair')} />
         <span className="spacer" />
         <span className="hints">
           <Kbd size="xs">↵</Kbd> paste
           <span className="dot">·</span>
-          <Kbd size="xs">⌫</Kbd> delete
+          <Kbd size="xs">⌃</Kbd>click multi
           <span className="dot">·</span>
           <Kbd size="xs">⇧</Kbd><Kbd size="xs">⌃</Kbd><Kbd size="xs">S</Kbd> send
-          <span className="dot">·</span> type to search
         </span>
       </footer>
       {toast && <div className="toast">{toast}</div>}
@@ -456,6 +489,8 @@ const shellCss = `
   }
   footer .dot { opacity: .5; }
   footer .spacer { flex: 1; }
+  footer .multi-count { color: var(--cm-accent); font-weight: 500; display: inline-flex; align-items: center; gap: 4px; }
+  footer .multi-count svg { vertical-align: -1px; }
   footer .hints { opacity: .8; display: inline-flex; align-items: center; gap: 5px; }
   footer .hints .dot { opacity: .4; }
   footer .pair-link svg { vertical-align: -1px; }

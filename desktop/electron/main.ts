@@ -207,6 +207,23 @@ function createTray() {
   tray.on('click', () => toggleWindow());
 }
 
+// Paste several text-shaped clips at once, joined by newlines, in the given
+// order. Non-text clips (image/file) are skipped. Used by multi-select.
+async function pasteManyById(ids: number[], shiftForTerminal: boolean): Promise<void> {
+  if (!db || ids.length === 0) return;
+  const parts: string[] = [];
+  for (const id of ids) {
+    const row = db.raw()
+      .prepare('SELECT content, mime FROM clips WHERE id = ?')
+      .get(id) as { content: Buffer; mime: string } | undefined;
+    if (row && row.mime.startsWith('text/')) parts.push(row.content.toString('utf8'));
+  }
+  if (parts.length === 0) return;
+  mainWindow?.hide();
+  await new Promise((r) => setTimeout(r, 50));
+  await pasteToActive(Buffer.from(parts.join('\n'), 'utf8'), 'text/plain', shiftForTerminal);
+}
+
 async function pasteById(id: number, shiftForTerminal: boolean): Promise<void> {
   if (!db) return;
   const row = db
@@ -274,6 +291,7 @@ app.whenReady().then(() => {
   registerIpc({
     db,
     onPaste: pasteById,
+    onPasteMany: pasteManyById,
     onHidePanel: () => mainWindow?.hide(),
     onShowPanel: () => { mainWindow?.show(); mainWindow?.focus(); },
     onTogglePanel: toggleWindow,

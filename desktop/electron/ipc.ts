@@ -42,6 +42,7 @@ function rowToDto(r: any): ClipDto {
 export function registerIpc(opts: {
   db: Db;
   onPaste: (id: number, shiftForTerminal: boolean) => Promise<void>;
+  onPasteMany: (ids: number[], shiftForTerminal: boolean) => Promise<void>;
   onHidePanel: () => void;
   onShowPanel: () => void;
   onTogglePanel: () => void;
@@ -53,7 +54,7 @@ export function registerIpc(opts: {
   onSendClipToPeer: (clipId: number) => Promise<string | null>;
   onPickColor: () => Promise<string | null>;
 }): void {
-  const { db, onPaste, onHidePanel, onShowPanel, onTogglePanel, onSettingsSaved,
+  const { db, onPaste, onPasteMany, onHidePanel, onShowPanel, onTogglePanel, onSettingsSaved,
     onPairingBegin, onPairingCancel, onUnpair, onPairingState, onSendClipToPeer, onPickColor } = opts;
   const raw = db.raw();
 
@@ -139,6 +140,9 @@ export function registerIpc(opts: {
     return inserted.id;
   });
 
+  ipcMain.handle(IPC.pasteManyById, async (_e, ids: number[], shiftForTerminal: boolean): Promise<void> => {
+    await onPasteMany(ids, shiftForTerminal);
+  });
   ipcMain.handle(IPC.pasteById, async (_e, id: number, shiftForTerminal: boolean): Promise<void> => {
     await onPaste(id, shiftForTerminal);
   });

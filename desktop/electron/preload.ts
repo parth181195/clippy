@@ -14,6 +14,8 @@ const api = {
     ipcRenderer.invoke(IPC.saveEditedClip, originalId, newContent) as Promise<number>,
   pasteById: (id: number, shiftForTerminal = false) =>
     ipcRenderer.invoke(IPC.pasteById, id, shiftForTerminal) as Promise<void>,
+  pasteManyById: (ids: number[], shiftForTerminal = false) =>
+    ipcRenderer.invoke(IPC.pasteManyById, ids, shiftForTerminal) as Promise<void>,
   loadSettings: () => ipcRenderer.invoke(IPC.loadSettings) as Promise<Settings>,
   saveSettings: (s: Settings) => ipcRenderer.invoke(IPC.saveSettings, s) as Promise<void>,
   hidePanel: () => ipcRenderer.invoke(IPC.hidePanel) as Promise<void>,

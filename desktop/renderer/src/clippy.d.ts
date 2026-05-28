@@ -12,6 +12,7 @@ export interface ClippyApi {
   deleteClip(id: number, force?: boolean): Promise<void>;
   saveEditedClip(originalId: number, newContent: string): Promise<number>;
   pasteById(id: number, shiftForTerminal?: boolean): Promise<void>;
+  pasteManyById(ids: number[], shiftForTerminal?: boolean): Promise<void>;
   loadSettings(): Promise<Settings>;
   saveSettings(s: Settings): Promise<void>;
   hidePanel(): Promise<void>;

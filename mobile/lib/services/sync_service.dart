@@ -168,6 +168,9 @@ class SyncService extends ChangeNotifier {
     try {
       ch = IOWebSocketChannel.connect(Uri.parse('ws://${_paired!.host}:${_paired!.port}'));
       _channel = ch;
+      // Swallow the sink's done-future error (connection-refused surfaces here
+      // when the desktop is down) so it doesn't become an unhandled exception.
+      ch.sink.done.catchError((_) {});
       ch.stream.listen(
         _onMessage,
         onDone: () => _onDisconnect(ch!),

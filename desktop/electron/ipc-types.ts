@@ -70,6 +70,7 @@ export const IPC = {
   deleteClip: 'clip:delete',
   saveEditedClip: 'clip:save-edited',
   pasteById: 'clip:paste-by-id',
+  pasteManyById: 'clip:paste-many',
   loadSettings: 'settings:load',
   saveSettings: 'settings:save',
   hidePanel: 'panel:hide',

@@ -84,13 +84,15 @@ export function ClipCard({
   onSelect = () => {},
   actions,
   canSend = false,
+  multiSelected = false,
 }: {
   clip: ClipDto;
   state?: CardState;
   density?: Density;
-  onSelect?: () => void;
+  onSelect?: (mod: { ctrlKey: boolean; metaKey: boolean }) => void;
   actions?: ClipCardActions;
   canSend?: boolean;
+  multiSelected?: boolean;
 }) {
   const s = SIZES[density];
   const ct = clip.contentType;
@@ -152,15 +154,16 @@ export function ClipCard({
   const cardBtn = (
     <button
       type="button"
-      className={`card state-${state} type-${ct}`}
+      className={`card state-${state} type-${ct}${multiSelected ? ' multi' : ''}`}
       style={{
         width: s.w,
         height: s.h,
         padding: s.pad,
         gap: s.gap,
       }}
-      onClick={onSelect}
+      onClick={(e) => onSelect({ ctrlKey: e.ctrlKey, metaKey: e.metaKey })}
     >
+      {multiSelected && <span className="multi-check">✓</span>}
       {clip.isPinned && <span className="pin-stripe" />}
       <div className="top">
         <span
@@ -340,6 +343,17 @@ const cardCss = `
   .card.state-selected {
     background: var(--cm-surface-raised);
     border-color: var(--cm-accent);
+  }
+  .card.multi {
+    border-color: var(--cm-accent);
+    box-shadow: inset 0 0 0 1px var(--cm-accent);
+  }
+  .multi-check {
+    position: absolute; top: 8px; right: 8px; z-index: 2;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--cm-accent); color: white;
+    font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
   }
   .card.state-pressed { transform: scale(0.97); }
   .pin-stripe {
