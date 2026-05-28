@@ -39,6 +39,29 @@
   --badge-file-bg:  rgba(140,150,170,.14);  --badge-file-fg:  #9FA9BC;
 }
 
+:root[data-theme='oled'] {
+  --cm-bg: #000000;
+  --cm-bg-solid: #000000;
+  --cm-surface: #0C0C10;
+  --cm-surface-raised: #15151B;
+  --cm-surface-sunken: #000000;
+  --cm-border-subtle: #1E1E26;
+  --cm-border-strong: #2C2C36;
+  --cm-text: #ECECF1;
+  --cm-text-secondary: #9999A8;
+  --cm-text-tertiary: #5C5C6B;
+  --cm-warn: #A55C5C;
+  --cm-panel-scrim: rgba(0, 0, 0, 0.98);
+
+  --badge-text-bg:  rgba(153,153,168,.10);  --badge-text-fg:  #B0B0BE;
+  --badge-link-bg:  rgba(124,156,255,.13);  --badge-link-fg:  #A6B7EA;
+  --badge-code-bg:  rgba(199,146,234,.14);  --badge-code-fg:  #C9A8E7;
+  --badge-image-bg: rgba(91,192,190,.14);   --badge-image-fg: #8FCFC9;
+  --badge-color-bg: rgba(255,180,120,.14);  --badge-color-fg: #D9B493;
+  --badge-emoji-bg: rgba(230,189,108,.14);  --badge-emoji-fg: #D9BC8A;
+  --badge-file-bg:  rgba(140,150,170,.14);  --badge-file-fg:  #9FA9BC;
+}
+
 :root[data-theme='light'] {
   --cm-bg: #F5F5FA;
   --cm-bg-solid: #EFEFF4;

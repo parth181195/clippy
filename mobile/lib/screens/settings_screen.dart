@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import '../app.dart' show ScreenHeader;
 import '../services/sync_service.dart';
+import '../services/theme_controller.dart';
 import '../theme.dart';
 import 'pairing_screen.dart';
 
@@ -37,8 +38,10 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ]),
             ],
+            const _SectionLabel('Appearance'),
+            const _ThemePicker(),
             const _SectionLabel('About'),
-            _Group(children: const [
+            _Group(children: [
               _Row(label: 'Clippy', trailing: Text('v0.1.0', style: TextStyle(color: ClippyTokens.textSecDark, fontSize: 13)), last: true),
             ]),
           ],
@@ -121,6 +124,55 @@ class SettingsScreen extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
+    );
+  }
+}
+
+class _ThemePicker extends StatelessWidget {
+  const _ThemePicker();
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<ClippyMode>(
+      valueListenable: ThemeController.instance.notifier,
+      builder: (ctx, mode, _) {
+        Widget seg(ClippyMode m, String label, IconData icon) {
+          final active = m == mode;
+          return Expanded(
+            child: GestureDetector(
+              onTap: () => ThemeController.instance.set(m),
+              child: Container(
+                margin: const EdgeInsets.all(4),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: active ? ClippyTokens.accent : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Column(children: [
+                  Icon(icon, size: 18, color: active ? Colors.white : ClippyTokens.textSecDark),
+                  const SizedBox(height: 4),
+                  Text(label, style: TextStyle(
+                    color: active ? Colors.white : ClippyTokens.textSecDark,
+                    fontSize: 11, fontWeight: FontWeight.w600,
+                  )),
+                ]),
+              ),
+            ),
+          );
+        }
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: ClippyTokens.surfaceDark,
+            border: Border.all(color: ClippyTokens.borderSubtleDark),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(children: [
+            seg(ClippyMode.dark, 'Dark', Icons.dark_mode_outlined),
+            seg(ClippyMode.light, 'Light', Icons.light_mode_outlined),
+            seg(ClippyMode.oled, 'OLED', Icons.contrast),
+          ]),
+        );
+      },
     );
   }
 }

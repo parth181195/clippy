@@ -430,6 +430,7 @@ function Layout({ s, save }: { s: Settings; save: (patch: Partial<Settings>) => 
           <option value="auto">Auto</option>
           <option value="dark">Dark</option>
           <option value="light">Light</option>
+          <option value="oled">OLED (pure black)</option>
         </select>
       </Row>
       <Row label="Accent">

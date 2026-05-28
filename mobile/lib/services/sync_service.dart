@@ -11,6 +11,7 @@ import 'db_service.dart';
 import 'envelope.dart';
 import 'file_transfer_service.dart';
 import 'mdns_discovery.dart';
+import 'theme_controller.dart';
 
 enum ConnState { unpaired, connecting, connected, disconnected }
 
@@ -286,6 +287,8 @@ class SyncService extends ChangeNotifier {
         await _onClipNew(env);
       } else if (env.plugin == 'file_transfer') {
         await _files.handle(env);
+      } else if (env.plugin == 'core' && env.type == 'THEME') {
+        await ThemeController.instance.setFromString(env.payload['mode'] as String?);
       }
     } catch (e) {
       debugPrint('[clippy] env parse failed: $e');

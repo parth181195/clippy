@@ -316,6 +316,7 @@ app.whenReady().then(() => {
     }),
     onSendClipToPeer: async (clipId) => (await syncService?.sendClipToPeer(clipId)) ?? null,
     onPickColor: () => doPickColor(),
+    onSyncTheme: (mode) => { void syncService?.sendTheme(mode); },
   });
 
   if (settings.autostart) installAutostart();

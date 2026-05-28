@@ -36,6 +36,7 @@ export interface ClippyApi {
   actionRemove(id: number): Promise<void>;
   pickColor(): Promise<string | null>;
   copyText(text: string): Promise<void>;
+  syncTheme(mode: string): Promise<void>;
 }
 
 declare global {

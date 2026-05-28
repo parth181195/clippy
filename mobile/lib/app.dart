@@ -3,6 +3,7 @@ import 'screens/recent_screen.dart';
 import 'screens/send_screen.dart';
 import 'screens/settings_screen.dart';
 import 'services/sync_service.dart';
+import 'services/theme_controller.dart';
 import 'theme.dart';
 import 'widgets/transfer_banner.dart';
 
@@ -13,12 +14,17 @@ class ClippyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Clippy',
-      debugShowCheckedModeBanner: false,
-      scaffoldMessengerKey: clippyMessengerKey,
-      theme: clippyTheme(Brightness.dark),
-      home: const HomeShell(),
+    return ValueListenableBuilder<ClippyMode>(
+      valueListenable: ThemeController.instance.notifier,
+      builder: (context, mode, _) {
+        return MaterialApp(
+          title: 'Clippy',
+          debugShowCheckedModeBanner: false,
+          scaffoldMessengerKey: clippyMessengerKey,
+          theme: clippyThemeFor(mode),
+          home: const HomeShell(),
+        );
+      },
     );
   }
 }
@@ -164,7 +170,7 @@ class ScreenHeader extends StatelessWidget {
           Expanded(
             child: Text(
               title,
-              style: const TextStyle(
+              style: TextStyle(
                 color: ClippyTokens.textDark,
                 fontSize: 30, fontWeight: FontWeight.w700, letterSpacing: -1.2,
               ),

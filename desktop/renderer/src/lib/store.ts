@@ -82,6 +82,8 @@ function applyTheme(s: Settings): void {
       : s.theme;
   document.documentElement.dataset.theme = theme;
   document.documentElement.style.setProperty('--cm-accent', s.accent);
+  // Push the resolved theme to the paired phone so it matches.
+  window.clippy.syncTheme?.(theme).catch(() => {});
 }
 
 interface FilterState {

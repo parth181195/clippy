@@ -95,6 +95,8 @@ export const IPC = {
   // Color picker
   pickColor: 'color:pick',
   copyText: 'clip:copy-text',
+  // Theme sync
+  syncTheme: 'theme:sync',
   // Events from main → renderer
   EVT_CLIP_NEW: 'evt:clip-new',
   EVT_INCOGNITO_CHANGED: 'evt:incognito-changed',

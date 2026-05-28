@@ -6,10 +6,12 @@ import 'services/background_service.dart';
 import 'services/db_service.dart';
 import 'services/share_receiver.dart';
 import 'services/sync_service.dart';
+import 'services/theme_controller.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await DbService.instance();
+  await ThemeController.instance.load();
   // Android 13+ requires runtime POST_NOTIFICATIONS permission for any
   // notification to appear, including the foreground service's persistent one.
   try {
