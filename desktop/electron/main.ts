@@ -16,6 +16,11 @@ import { startDbusApp } from './dbus-app';
 import { installAll as installGnomeShortcuts } from './gnome-shortcut';
 import { SyncService } from './sync/sync-service';
 import { pickColor } from './color-picker';
+import { initSentryMain, setReportingEnabled } from './sentry';
+
+// Initialize crash/error reporting as early as possible (gated at runtime by
+// the user's `errorReporting` setting once the DB loads).
+initSentryMain(true);
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -51,6 +56,8 @@ function loadSettingsFromDb() {
     incognitoAutoDisableSecs:
       parseInt(map.get('incognito_auto_disable_secs') ?? '', 10) ||
       DEFAULT_SETTINGS.incognitoAutoDisableSecs,
+    errorReporting:
+      (map.get('error_reporting') ?? String(DEFAULT_SETTINGS.errorReporting)) === 'true',
   };
 }
 
@@ -265,6 +272,7 @@ async function doPickColor(): Promise<string | null> {
 app.whenReady().then(() => {
   db = Db.openDefault();
   const settings = loadSettingsFromDb();
+  setReportingEnabled(settings.errorReporting);
 
   sound = new SoundPlayer(settings.soundOnCopy);
   notifier = new Notifier(settings.notificationsOnCopy);
@@ -306,6 +314,7 @@ app.whenReady().then(() => {
       });
       sound?.setEnabled(next.soundOnCopy);
       notifier?.setEnabled(next.notificationsOnCopy);
+      setReportingEnabled(next.errorReporting);
     },
     onPairingBegin: async (deviceName) => {
       const r = await syncService!.beginPairing(deviceName);

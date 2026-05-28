@@ -364,6 +364,9 @@ function General({
       <Row label="Link previews (network egress on view)">
         <Switch checked={s.linkPreviewsEnabled} onCheckedChange={(v) => save({ linkPreviewsEnabled: v })} />
       </Row>
+      <Row label="Send crash reports (Sentry, opt-out)">
+        <Switch checked={s.errorReporting} onCheckedChange={(v) => save({ errorReporting: v })} />
+      </Row>
       <Row label="Auto-sync outgoing (text-shaped → phone)">
         <Switch checked={s.autoSyncOutgoing} onCheckedChange={(v) => save({ autoSyncOutgoing: v })} />
       </Row>

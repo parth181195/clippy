@@ -2,6 +2,7 @@ import 'package:disable_battery_optimization/disable_battery_optimization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import '../app.dart' show ScreenHeader;
+import '../services/error_reporting.dart';
 import '../services/sync_service.dart';
 import '../services/theme_controller.dart';
 import '../theme.dart';
@@ -40,6 +41,8 @@ class SettingsScreen extends StatelessWidget {
             ],
             const _SectionLabel('Appearance'),
             const _ThemePicker(),
+            const _SectionLabel('Diagnostics'),
+            const _CrashReportingCard(),
             const _SectionLabel('About'),
             _Group(children: [
               _Row(label: 'Clippy', trailing: Text('v0.1.0', style: TextStyle(color: ClippyTokens.textSecDark, fontSize: 13)), last: true),
@@ -175,6 +178,32 @@ class _ThemePicker extends StatelessWidget {
         );
       },
     );
+  }
+}
+
+class _CrashReportingCard extends StatefulWidget {
+  const _CrashReportingCard();
+  @override
+  State<_CrashReportingCard> createState() => _CrashReportingCardState();
+}
+
+class _CrashReportingCardState extends State<_CrashReportingCard> {
+  @override
+  Widget build(BuildContext context) {
+    return _Group(children: [
+      _Row(
+        label: 'Send crash reports',
+        hint: 'Automatic error reports help fix beta bugs. Your clipboard contents are never sent.',
+        trailing: Switch(
+          value: ErrorReporting.instance.enabled,
+          onChanged: (v) async {
+            await ErrorReporting.instance.set(v);
+            if (mounted) setState(() {});
+          },
+        ),
+        last: true,
+      ),
+    ]);
   }
 }
 

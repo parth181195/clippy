@@ -17,7 +17,7 @@ A LAN-only, peer-to-peer clipboard manager + small-file sharer for Ubuntu (GNOME
 
 ## How it works
 
-Desktop and phone pair by scanning a QR code, then talk directly over the local network on a WebSocket (port 43117), discovered via mDNS. Every frame is encrypted with libsodium `secretbox` (XSalsa20-Poly1305) using a 32-byte key exchanged in the pairing QR. Text-shaped clips sync automatically; images and files (up to 10 MB) are sent on an explicit gesture. Nothing leaves your network.
+Desktop and phone pair by scanning a QR code, then talk directly over the local network on a WebSocket (port 43117), discovered via mDNS. Every frame is encrypted with libsodium `secretbox` (XSalsa20-Poly1305) using a 32-byte key exchanged in the pairing QR. Text-shaped clips sync automatically; images and files (up to 10 MB) are sent on an explicit gesture. Your clipboard contents never leave your network — the only data Clippy sends off-device is optional, opt-out crash reports (Sentry) to help fix beta bugs.
 
 ## Build & run
 

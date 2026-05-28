@@ -37,6 +37,7 @@ export interface Settings {
   incognitoAutoDisableSecs: number;
   autostart: boolean;
   windowTransparent: boolean;
+  errorReporting: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -58,6 +59,7 @@ export const DEFAULT_SETTINGS: Settings = {
   incognitoAutoDisableSecs: 300,
   autostart: true,
   windowTransparent: true,
+  errorReporting: true,
 };
 
 // IPC channel names — used by both sides.

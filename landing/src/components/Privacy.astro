@@ -6,14 +6,14 @@ const rows = [
   ['Zero accounts', 'No email, no sign-up, no cloud sync. Scan a QR code once to pair.'],
   ['End-to-end encrypted', 'libsodium secretbox (XSalsa20-Poly1305). A 32-byte key is exchanged in the pairing QR — never over the wire.'],
   ['Open source', 'GPLv3. Read every byte of the desktop app and the Android client.'],
-  ['No telemetry', "There's no analytics pipeline. No “anonymous usage data,” no crash reporter."],
+  ['Crash reports, opt-out', 'During the beta, automatic crash & error reports help us fix bugs fast — toggle them off in Settings. Your clipboard contents are never part of them.'],
 ];
 ---
 <section class="privacy" id="privacy">
   <div class="wrap">
     <div class="kicker mono">· PRIVACY ·</div>
-    <h2>Nothing leaves<br />your network. Ever.</h2>
-    <p class="sub">Your clipboard holds passwords, draft messages, half-formed thoughts. Clippy is built so it physically can't phone home with any of it.</p>
+    <h2>Your clipboard never<br />leaves your network.</h2>
+    <p class="sub">Clips and files move directly between your devices over the LAN, end-to-end encrypted — never through a server we run. The only thing Clippy sends out is an optional crash report, and you can switch that off.</p>
 
     <div class="body grid-2">
       <div class="diagram">

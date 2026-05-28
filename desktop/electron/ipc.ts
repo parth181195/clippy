@@ -179,6 +179,7 @@ export function registerIpc(opts: {
       ['incognito_auto_disable_secs', String(s.incognitoAutoDisableSecs)],
       ['autostart', String(s.autostart)],
       ['window_transparent', String(s.windowTransparent)],
+      ['error_reporting', String(s.errorReporting)],
     ];
     const tx = raw.transaction((rows: Array<[string, string]>) => {
       for (const [k, v] of rows) upsert.run(k, v);

@@ -1,15 +1,34 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'app.dart';
 import 'services/background_service.dart';
 import 'services/db_service.dart';
+import 'services/error_reporting.dart';
 import 'services/share_receiver.dart';
 import 'services/sync_service.dart';
 import 'services/theme_controller.dart';
 
+// Sentry DSN is a write-only ingest key — safe to embed. Override with
+// --dart-define=SENTRY_DSN=... at build time if needed.
+const _kSentryDsn =
+    'https://9502f9eba61adfd44d1c49b651298abd@o4511466706567168.ingest.de.sentry.io/4511466716659792';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await ErrorReporting.instance.load();
+  await SentryFlutter.init(
+    (options) {
+      options.dsn = const String.fromEnvironment('SENTRY_DSN', defaultValue: _kSentryDsn);
+      // Honor the opt-out: drop every event when reporting is disabled.
+      options.beforeSend = (event, hint) => ErrorReporting.instance.enabled ? event : null;
+    },
+    appRunner: _bootstrap,
+  );
+}
+
+Future<void> _bootstrap() async {
   await DbService.instance();
   await ThemeController.instance.load();
   // Android 13+ requires runtime POST_NOTIFICATIONS permission for any
