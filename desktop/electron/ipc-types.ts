@@ -91,6 +91,8 @@ export const IPC = {
   actionRun: 'action:run',
   actionAdd: 'action:add',
   actionRemove: 'action:remove',
+  // Color picker
+  pickColor: 'color:pick',
   // Events from main → renderer
   EVT_CLIP_NEW: 'evt:clip-new',
   EVT_INCOGNITO_CHANGED: 'evt:incognito-changed',

@@ -51,6 +51,8 @@ const api = {
   actionAdd: (contentType: string, label: string, command: string, args: string[]) =>
     ipcRenderer.invoke(IPC.actionAdd, contentType, label, command, args) as Promise<void>,
   actionRemove: (id: number) => ipcRenderer.invoke(IPC.actionRemove, id) as Promise<void>,
+
+  pickColor: () => ipcRenderer.invoke(IPC.pickColor) as Promise<string | null>,
   onConnState: (cb: (s: ConnStatus) => void) => {
     const h = (_e: any, s: ConnStatus) => cb(s);
     ipcRenderer.on(IPC.EVT_CONN_STATE, h);

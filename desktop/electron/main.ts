@@ -15,6 +15,7 @@ import { currentFocusedApp, setFocusedAppFromShell } from './focused-app';
 import { startDbusApp } from './dbus-app';
 import { installAll as installGnomeShortcuts } from './gnome-shortcut';
 import { SyncService } from './sync/sync-service';
+import { pickColor } from './color-picker';
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -219,6 +220,28 @@ async function pasteById(id: number, shiftForTerminal: boolean): Promise<void> {
   await pasteToActive(row.content, row.mime, shiftForTerminal);
 }
 
+// Launch the system screen color picker, store the result as a color clip,
+// and notify the renderer. Returns the picked hex or null.
+async function doPickColor(): Promise<string | null> {
+  if (!db) return null;
+  const hex = await pickColor();
+  if (!hex) return null;
+  const { id, wasNew } = db.insertClip(
+    'color',
+    Buffer.from(hex, 'utf8'),
+    'text/plain',
+    hex,
+    'color picker',
+    Date.now()
+  );
+  if (!wasNew) {
+    db.raw().prepare('UPDATE clips SET created_at = ? WHERE id = ?').run(Date.now(), id);
+  }
+  mainWindow?.webContents.send(IPC.EVT_CLIP_NEW, id);
+  sound?.playCopy();
+  return hex;
+}
+
 app.whenReady().then(() => {
   db = Db.openDefault();
   const settings = loadSettingsFromDb();
@@ -274,6 +297,7 @@ app.whenReady().then(() => {
       deviceName: syncService?.pairedDeviceName() ?? null,
     }),
     onSendClipToPeer: async (clipId) => (await syncService?.sendClipToPeer(clipId)) ?? null,
+    onPickColor: () => doPickColor(),
   });
 
   if (settings.autostart) installAutostart();
@@ -345,6 +369,7 @@ app.whenReady().then(() => {
     onPasteLast: () => doPasteLast(),
     onToggleIncognito: () => incognito?.toggle(),
     onSetFocusedApp: (appId) => setFocusedAppFromShell(appId),
+    onPickColor: () => { void doPickColor(); },
   });
   // Install / refresh all GNOME custom keybindings so user's hotkeys actually
   // fire on Wayland. Idempotent on every startup, and re-called from the

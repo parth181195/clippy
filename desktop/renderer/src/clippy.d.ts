@@ -33,6 +33,7 @@ export interface ClippyApi {
   actionRun(clipId: number, actionId: number): Promise<{ ok: boolean; error?: string }>;
   actionAdd(contentType: string, label: string, command: string, args: string[]): Promise<void>;
   actionRemove(id: number): Promise<void>;
+  pickColor(): Promise<string | null>;
 }
 
 declare global {

@@ -51,9 +51,10 @@ export function registerIpc(opts: {
   onUnpair: () => Promise<void>;
   onPairingState: () => { state: string; deviceName: string | null };
   onSendClipToPeer: (clipId: number) => Promise<string | null>;
+  onPickColor: () => Promise<string | null>;
 }): void {
   const { db, onPaste, onHidePanel, onShowPanel, onTogglePanel, onSettingsSaved,
-    onPairingBegin, onPairingCancel, onUnpair, onPairingState, onSendClipToPeer } = opts;
+    onPairingBegin, onPairingCancel, onUnpair, onPairingState, onSendClipToPeer, onPickColor } = opts;
   const raw = db.raw();
 
   ipcMain.handle(IPC.listClips, (_e, args: ListClipsArgs = {}): ClipDto[] => {
@@ -221,6 +222,8 @@ export function registerIpc(opts: {
   ipcMain.handle(IPC.actionRemove, (_e, id: number): void => {
     raw.prepare('DELETE FROM clip_actions WHERE id = ?').run(id);
   });
+
+  ipcMain.handle(IPC.pickColor, () => onPickColor());
 
   ipcMain.handle(IPC.actionRun, async (_e, clipId: number, actionId: number): Promise<{ ok: boolean; error?: string }> => {
     const action = raw.prepare('SELECT * FROM clip_actions WHERE id = ?').get(actionId) as any;

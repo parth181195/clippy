@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Settings as SettingsIcon, Smartphone, Star, WifiOff, Zap } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Palette, Settings as SettingsIcon, Smartphone, Star, WifiOff, Zap } from 'lucide-react';
 import { PanelLayout } from './components/PanelLayout';
 import { Kbd } from './components/Kbd';
 import { SearchBar, type SearchBarHandle } from './components/SearchBar';
@@ -264,6 +264,20 @@ export function App() {
             );
           })}
         </div>
+        <button
+          className="settings-btn"
+          onClick={async () => {
+            showToast('Pick a color from the screen…');
+            try { await window.clippy.hidePanel(); } catch {}
+            const hex = await window.clippy.pickColor();
+            if (hex) { try { await window.clippy.showPanel(); } catch {} showToast(`Picked ${hex.toUpperCase()}`); }
+          }}
+          aria-label="Pick color"
+          title="Pick a color from the screen"
+          type="button"
+        >
+          <Palette size={16} strokeWidth={2} />
+        </button>
         <button
           className="settings-btn"
           onClick={() => setMode(mode === 'settings' ? 'list' : 'settings')}
