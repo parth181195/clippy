@@ -25,7 +25,7 @@ Status: SPEC ONLY — implementation deferred.
 | Settings: Devices section | ✅ | Live state dot + Unpair button |
 | Settings: Exclusions UI | ✅ | Chip-list editor (list/add/remove via new IPC) |
 | Filter transfer circular-progress card | ❌ | Deferred — bottom banner is sufficient |
-| Per-type Actions editor | ❌ | Still stubbed |
+| Per-type Actions editor | ✅ | Settings → Actions: per-type list/add/remove, command runs with clip text |
 
 ## Implementation order (when picked up later)
 
