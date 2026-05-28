@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'screens/onboarding_screen.dart';
 import 'screens/recent_screen.dart';
 import 'screens/send_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/splash_screen.dart';
 import 'services/sync_service.dart';
 import 'services/theme_controller.dart';
 import 'theme.dart';
@@ -22,14 +24,67 @@ class ClippyApp extends StatelessWidget {
           debugShowCheckedModeBanner: false,
           scaffoldMessengerKey: clippyMessengerKey,
           theme: clippyThemeFor(ThemeController.instance.mode),
-          // Key by the revision so the whole subtree rebuilds on any theme OR
-          // accent change — widgets read ClippyTokens static colors at build
-          // time and otherwise wouldn't repaint until navigated. Selected tab
-          // survives via the module-level _savedTab.
-          home: HomeShell(key: ValueKey(rev)),
+          // The launch gate owns the splash → onboarding/home decision. It
+          // re-keys its resolved child by `rev` so the whole subtree rebuilds
+          // on any theme OR accent change (widgets read ClippyTokens static
+          // colors at build time). The gate's own state persists across rev
+          // bumps, so the splash never replays. Selected tab survives via the
+          // module-level _savedTab.
+          home: LaunchGate(rev: rev),
         );
       },
     );
+  }
+}
+
+enum _LaunchPhase { splash, onboarding, home }
+
+/// Shows the branded splash for a short dwell, then routes to onboarding
+/// (first run, not paired) or straight to the home shell. [rev] is threaded
+/// from the theme controller and applied as the resolved child's key so theme
+/// changes repaint without resetting this gate (which would replay the splash).
+class LaunchGate extends StatefulWidget {
+  final int rev;
+  const LaunchGate({super.key, required this.rev});
+  @override
+  State<LaunchGate> createState() => _LaunchGateState();
+}
+
+class _LaunchGateState extends State<LaunchGate> {
+  _LaunchPhase _phase = _LaunchPhase.splash;
+
+  @override
+  void initState() {
+    super.initState();
+    _decide();
+  }
+
+  Future<void> _decide() async {
+    // Minimum dwell so the launch reads as a deliberate brand moment, not a flash.
+    final minSplash = Future<void>.delayed(const Duration(milliseconds: 1500));
+    final onboarded = await OnboardingScreen.isOnboarded();
+    await minSplash;
+    if (!mounted) return;
+    final paired = SyncService.instance.state != ConnState.unpaired;
+    setState(() {
+      _phase = (paired || onboarded) ? _LaunchPhase.home : _LaunchPhase.onboarding;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    switch (_phase) {
+      case _LaunchPhase.splash:
+        final paired = SyncService.instance.state != ConnState.unpaired;
+        return SplashScreen(status: paired ? 'Connecting…' : 'Starting up…');
+      case _LaunchPhase.onboarding:
+        return OnboardingScreen(
+          key: ValueKey(widget.rev),
+          onDone: () => setState(() => _phase = _LaunchPhase.home),
+        );
+      case _LaunchPhase.home:
+        return HomeShell(key: ValueKey(widget.rev));
+    }
   }
 }
 
