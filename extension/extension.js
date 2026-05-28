@@ -25,7 +25,7 @@ class ClippyIndicator extends PanelMenu.Button {
     this._extension = extension;
 
     const icon = new St.Icon({
-      icon_name: 'edit-paste-symbolic',
+      gicon: Gio.icon_new_for_string(`${extension.path}/icons/clippy-symbolic.svg`),
       style_class: 'system-status-icon',
     });
     this.add_child(icon);

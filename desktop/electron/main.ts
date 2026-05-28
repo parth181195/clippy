@@ -80,6 +80,7 @@ function createWindow() {
     x, y,
     width: W,
     height: H,
+    icon: join(process.cwd(), 'assets', 'icons', 'icon.png'),
     frame: false,
     transparent: settings.windowTransparent,
     backgroundColor: settings.windowTransparent ? '#00000000' : '#0E0E15',
@@ -159,6 +160,7 @@ function installAutostart() {
   // shows up where we expect.
   const electronBin = process.argv0;
   const appDir = app.getAppPath();
+  const iconPath = join(appDir, 'assets', 'icons', 'icon.png');
   const exec = [
     electronBin,
     appDir,
@@ -172,6 +174,7 @@ Type=Application
 Name=Clippy
 Comment=LAN clipboard manager
 Exec=${exec}
+Icon=${iconPath}
 X-GNOME-Autostart-enabled=true
 Terminal=false
 NoDisplay=false
