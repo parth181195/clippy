@@ -3,9 +3,11 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../app.dart' show ScreenHeader;
 import '../services/db_service.dart';
 import '../services/sync_service.dart';
 import '../theme.dart';
+import '../widgets/connection_chip.dart';
 
 class RecentScreen extends StatefulWidget {
   const RecentScreen({super.key});
@@ -147,6 +149,11 @@ class _RecentScreenState extends State<RecentScreen> {
   Widget build(BuildContext context) {
     return Column(
       children: [
+        const ScreenHeader(title: 'Recent'),
+        const Padding(
+          padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: ConnectionChip(),
+        ),
         _SearchBar(value: _query, onChanged: (v) => setState(() => _query = v)),
         Expanded(child: _buildList()),
       ],
@@ -174,7 +181,7 @@ class _RecentScreenState extends State<RecentScreen> {
       );
     }
     return ListView.separated(
-      padding: const EdgeInsets.only(top: 6, bottom: 80),
+      padding: const EdgeInsets.only(top: 6, bottom: 120),
       itemCount: visible.length,
       separatorBuilder: (_, i) => Divider(height: 1, thickness: 1, color: ClippyTokens.borderSubtleDark, indent: 16, endIndent: 16),
       itemBuilder: (ctx, i) {

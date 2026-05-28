@@ -30,60 +30,144 @@ class _HomeShellState extends State<HomeShell> {
   int _idx = 0;
 
   static const _pages = [RecentScreen(), SendScreen(), SettingsScreen()];
-  static const _titles = ['Recent', 'Send', 'Settings'];
 
   @override
   void initState() {
     super.initState();
-    SyncService.instance.addListener(() { if (mounted) setState(() {}); });
+    SyncService.instance.addListener(_onSync);
   }
 
-  Widget _connDot() {
-    final s = SyncService.instance.state;
-    final color = switch (s) {
-      ConnState.connected => Colors.greenAccent,
-      ConnState.connecting => Colors.amberAccent,
-      ConnState.disconnected => Colors.redAccent,
-      ConnState.unpaired => ClippyTokens.textTerDark,
-    };
-    return Padding(
-      padding: const EdgeInsets.only(right: 16),
-      child: Center(
-        child: Container(
-          width: 10, height: 10,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-      ),
-    );
+  @override
+  void dispose() {
+    SyncService.instance.removeListener(_onSync);
+    super.dispose();
+  }
+
+  void _onSync() {
+    if (mounted) setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        leading: _idx == 0
-            ? null
-            : BackButton(onPressed: () => setState(() => _idx = 0)),
-        title: Text(_titles[_idx]),
-        actions: [_connDot()],
-      ),
+      backgroundColor: ClippyTokens.bgSolidDark,
       body: Stack(
         children: [
-          _pages[_idx],
+          SafeArea(bottom: false, child: _pages[_idx]),
           const Positioned(
+            left: 0, right: 0, bottom: 96,
+            child: TransferBanner(),
+          ),
+          Positioned(
             left: 0, right: 0, bottom: 0,
-            child: SafeArea(child: TransferBanner()),
+            child: _PillNav(
+              index: _idx,
+              connState: SyncService.instance.state,
+              onTap: (i) => setState(() => _idx = i),
+            ),
           ),
         ],
       ),
-      bottomNavigationBar: NavigationBar(
-        backgroundColor: ClippyTokens.surfaceSunkenDark,
-        selectedIndex: _idx,
-        onDestinationSelected: (i) => setState(() => _idx = i),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.history), label: 'Recent'),
-          NavigationDestination(icon: Icon(Icons.send), label: 'Send'),
-          NavigationDestination(icon: Icon(Icons.settings), label: 'Settings'),
+    );
+  }
+}
+
+class _PillNav extends StatelessWidget {
+  final int index;
+  final ConnState connState;
+  final ValueChanged<int> onTap;
+  const _PillNav({required this.index, required this.connState, required this.onTap});
+
+  static const _tabs = [
+    (icon: Icons.content_paste, label: 'Recent'),
+    (icon: Icons.send, label: 'Send'),
+    (icon: Icons.settings, label: 'Settings'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.bottomCenter, end: Alignment.topCenter,
+          colors: [ClippyTokens.bgSolidDark, ClippyTokens.bgSolidDark.withValues(alpha: 0)],
+        ),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: ClippyTokens.surfaceDark,
+          border: Border.all(color: ClippyTokens.borderSubtleDark),
+          borderRadius: BorderRadius.circular(100),
+          boxShadow: const [BoxShadow(color: Color(0x2E000000), blurRadius: 18, offset: Offset(0, 6))],
+        ),
+        padding: const EdgeInsets.all(4),
+        child: Row(
+          children: List.generate(_tabs.length, (i) {
+            final active = i == index;
+            final t = _tabs[i];
+            return Expanded(
+              flex: active ? 14 : 10,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => onTap(i),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeOutCubic,
+                  padding: const EdgeInsets.symmetric(vertical: 11),
+                  decoration: BoxDecoration(
+                    color: active ? ClippyTokens.accent : Colors.transparent,
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(t.icon, size: 18, color: active ? Colors.white : ClippyTokens.textSecDark),
+                      if (active) ...[
+                        const SizedBox(width: 7),
+                        Flexible(
+                          child: Text(
+                            t.label,
+                            overflow: TextOverflow.clip,
+                            softWrap: false,
+                            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
+      ),
+    );
+  }
+}
+
+/// Big-title header used at the top of each screen, matching the design.
+class ScreenHeader extends StatelessWidget {
+  final String title;
+  final List<Widget> actions;
+  const ScreenHeader({super.key, required this.title, this.actions = const []});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 12, 14),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(
+                color: ClippyTokens.textDark,
+                fontSize: 30, fontWeight: FontWeight.w700, letterSpacing: -1.2,
+              ),
+            ),
+          ),
+          ...actions,
         ],
       ),
     );
