@@ -37,6 +37,15 @@ const jsonLd = {
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <meta name="theme-color" content="#0E0E15" />
 
+    <!-- Firebase Analytics (GA4 stream for the clippy-636f2 project) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-JN5M5N9F4M"></script>
+    <script is:inline>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() { dataLayer.push(arguments); }
+      gtag('js', new Date());
+      gtag('config', 'G-JN5M5N9F4M');
+    </script>
+
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Clippy" />

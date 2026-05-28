@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://clippy.web.app/sitemap.xml
+Sitemap: https://clippy.parthjansari.dev/sitemap.xml
