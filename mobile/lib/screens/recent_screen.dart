@@ -8,6 +8,7 @@ import '../services/db_service.dart';
 import '../services/sync_service.dart';
 import '../theme.dart';
 import '../widgets/connection_chip.dart';
+import 'clip_preview_screen.dart';
 
 class RecentScreen extends StatefulWidget {
   const RecentScreen({super.key});
@@ -20,6 +21,15 @@ class _RecentScreenState extends State<RecentScreen> {
   final Map<int, Uint8List> _bytesById = {};
   Timer? _debouncedLoad;
   String _query = '';
+  bool _syncing = false;
+
+  Future<void> _syncNow() async {
+    setState(() => _syncing = true);
+    await SyncService.instance.requestSync();
+    // Brief lockout so mashing the button doesn't spam SYNC_REQUEST.
+    await Future.delayed(const Duration(seconds: 3));
+    if (mounted) setState(() => _syncing = false);
+  }
 
   @override
   void initState() {
@@ -149,7 +159,15 @@ class _RecentScreenState extends State<RecentScreen> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        const ScreenHeader(title: 'Recent'),
+        ScreenHeader(title: 'Recent', actions: [
+          IconButton(
+            onPressed: _syncing ? null : _syncNow,
+            icon: _syncing
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                : Icon(Icons.sync, color: ClippyTokens.textSecDark),
+            tooltip: 'Sync now',
+          ),
+        ]),
         const Padding(
           padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
           child: ConnectionChip(),
@@ -199,7 +217,12 @@ class _RecentScreenState extends State<RecentScreen> {
           child: _ClipRow(
             row: row,
             bytes: _bytesByIdFor(row),
-            onTap: () => _copy(row),
+            onTap: () async {
+              final changed = await Navigator.of(context).push<bool>(
+                MaterialPageRoute(builder: (_) => ClipPreviewScreen(row: row, bytes: _bytesByIdFor(row))),
+              );
+              if (changed == true || mounted) _load();
+            },
             onLongPress: () => _openSheet(row),
           ),
         );

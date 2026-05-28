@@ -293,6 +293,18 @@ class SyncService extends ChangeNotifier {
   /// Fires notifyListeners so the foreground UI re-loads from DB.
   void notifyExternalChange() => notifyListeners();
 
+  /// Ask the desktop to resend its recent clip history (manual sync).
+  Future<void> requestSync() async {
+    if (state != ConnState.connected) return;
+    await _send(Envelope(
+      type: 'SYNC_REQUEST',
+      id: newUuidV4(),
+      ts: DateTime.now().millisecondsSinceEpoch,
+      plugin: 'core',
+      payload: {},
+    ));
+  }
+
   /// Send raw bytes (image/file) to the paired desktop.
   Future<String?> sendFile({
     required Uint8List bytes,

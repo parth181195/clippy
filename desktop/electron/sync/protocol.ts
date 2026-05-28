@@ -29,6 +29,7 @@ export const TYPES = {
   CLIP_NEW: 'CLIP_NEW',
   CLIP_REQUEST: 'CLIP_REQUEST',
   CLIP_LIST: 'CLIP_LIST',
+  SYNC_REQUEST: 'SYNC_REQUEST',
   // file_transfer plugin
   FILE_OFFER: 'FILE_OFFER',
   FILE_ACCEPT: 'FILE_ACCEPT',

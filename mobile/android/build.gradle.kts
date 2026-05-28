@@ -14,6 +14,24 @@ rootProject.layout.buildDirectory.value(newBuildDir)
 subprojects {
     val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
     project.layout.buildDirectory.value(newSubprojectBuildDir)
+
+    // Some plugins (e.g. receive_sharing_intent) compile Java to 1.8 but Kotlin
+    // to 17, which newer Gradle rejects as inconsistent. Pin every subproject's
+    // Java + Kotlin target to 17 so they always match. Registered here (before
+    // the evaluationDependsOn below forces evaluation).
+    afterEvaluate {
+        extensions.findByName("android")?.let { ext ->
+            runCatching {
+                (ext as com.android.build.gradle.BaseExtension).compileOptions {
+                    sourceCompatibility = JavaVersion.VERSION_17
+                    targetCompatibility = JavaVersion.VERSION_17
+                }
+            }
+        }
+        tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+            compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        }
+    }
 }
 subprojects {
     project.evaluationDependsOn(":app")

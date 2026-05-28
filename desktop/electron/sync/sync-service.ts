@@ -210,6 +210,11 @@ export class SyncService {
       this.clipPlugin?.sendHistory().catch((e) => log(`sendHistory: ${e}`));
       return;
     }
+    if (env.type === TYPES.SYNC_REQUEST) {
+      log('recv core/SYNC_REQUEST → resending history');
+      this.clipPlugin?.sendHistory().catch((e) => log(`sendHistory: ${e}`));
+      return;
+    }
     if (env.plugin === 'clipboard') {
       await this.clipPlugin?.handle(env);
     }

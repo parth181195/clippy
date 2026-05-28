@@ -6,6 +6,8 @@ import 'services/sync_service.dart';
 import 'theme.dart';
 import 'widgets/transfer_banner.dart';
 
+final clippyMessengerKey = GlobalKey<ScaffoldMessengerState>();
+
 class ClippyApp extends StatelessWidget {
   const ClippyApp({super.key});
 
@@ -14,6 +16,7 @@ class ClippyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Clippy',
       debugShowCheckedModeBanner: false,
+      scaffoldMessengerKey: clippyMessengerKey,
       theme: clippyTheme(Brightness.dark),
       home: const HomeShell(),
     );

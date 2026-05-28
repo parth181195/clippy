@@ -4,6 +4,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'app.dart';
 import 'services/background_service.dart';
 import 'services/db_service.dart';
+import 'services/share_receiver.dart';
 import 'services/sync_service.dart';
 
 Future<void> main() async {
@@ -26,6 +27,12 @@ Future<void> main() async {
 
   // Hand the connection back and forth as the app enters/leaves foreground.
   WidgetsBinding.instance.addObserver(_LifecycleHandoff(bg));
+
+  // Forward content shared into Clippy from other apps → desktop.
+  ShareReceiver.onMessage = (m) => clippyMessengerKey.currentState?.showSnackBar(
+        SnackBar(content: Text(m), duration: const Duration(milliseconds: 1200)),
+      );
+  await ShareReceiver.init();
 
   runApp(const ClippyApp());
 }
