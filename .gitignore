@@ -12,6 +12,10 @@ desktop/*.local
 # GNOME extension
 extension/node_modules/
 extension/dist/
+extension/clippy.zip
+
+# Desktop packaging output
+desktop/release/
 
 # Flutter
 mobile/.dart_tool/
@@ -22,6 +26,10 @@ mobile/build/
 mobile/android/.gradle/
 mobile/android/.idea/
 mobile/android/local.properties
+
+# Android release signing — keep secret + backed up, NEVER commit
+mobile/android/key.properties
+mobile/android/app/*.jks
 mobile/ios/Pods/
 mobile/ios/.symlinks/
 mobile/ios/Flutter/Flutter.framework
