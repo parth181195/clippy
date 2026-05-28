@@ -1,0 +1,23 @@
+---
+interface Props { primary?: boolean; ghost?: boolean; large?: boolean; href?: string; class?: string; }
+const { primary, ghost, large, href, class: cls } = Astro.props;
+const kind = primary ? 'primary' : ghost ? 'ghost' : 'solid';
+const Tag = href ? 'a' : 'button';
+---
+<Tag class:list={['btn', kind, { large }, cls]} href={href}>
+  <slot />
+</Tag>
+<style>
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px; white-space: nowrap;
+    padding: 8px 14px; border-radius: 10px; font-size: 13px; font-weight: 600;
+    border: none; cursor: pointer; transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .btn.large { padding: 14px 22px; font-size: 15px; }
+  .btn:hover { transform: translateY(-1px); }
+  .primary { background: var(--accent); color: #fff; box-shadow: 0 8px 24px rgba(233, 86, 120, 0.27); }
+  .primary:hover { box-shadow: 0 10px 30px rgba(233, 86, 120, 0.4); }
+  .ghost { background: transparent; color: var(--text); border: 1px solid var(--border-strong); font-weight: 500; }
+  .ghost:hover { border-color: var(--text-secondary); }
+  .solid { background: var(--text); color: var(--bg); font-weight: 500; }
+</style>

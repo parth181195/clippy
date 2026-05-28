@@ -1,0 +1,14 @@
+---
+const { } = Astro.props;
+---
+<kbd><slot /></kbd>
+<style>
+  kbd {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 24px; height: 26px; padding: 0 7px;
+    font-family: var(--mono); font-size: 12px; font-weight: 500;
+    color: var(--text); background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-bottom-width: 2px; border-radius: 6px;
+  }
+</style>

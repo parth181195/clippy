@@ -49,3 +49,8 @@ mobile/ios/Runner.xcodeproj/xcuserdata/
 
 # Stray non-project files
 *.pdf
+
+# Landing (Astro)
+landing/node_modules/
+landing/dist/
+landing/.astro/

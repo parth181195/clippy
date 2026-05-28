@@ -1,0 +1,75 @@
+---
+import Icon from './Icon.astro';
+
+// Honest: only what actually ships in v0.1. No competitor claims.
+const groups = [
+  {
+    title: 'Capture & organize',
+    items: [
+      'Unlimited clipboard history',
+      'Text, links, code, color, emoji, images & files',
+      'Full-text search across everything',
+      'Type filters, favorites & pins',
+      'Syntax-highlighted code clips',
+      'Color clips — HEX / RGB / HSL / OKLCH',
+      'Per-type actions (open URL, run command)',
+      'Multi-select → paste several at once',
+      'Incognito mode',
+    ],
+  },
+  {
+    title: 'Sync & share',
+    items: [
+      'Desktop ↔ phone clipboard sync',
+      'Send files to your phone (up to 10 MB)',
+      'Theme & accent sync to the phone',
+      'End-to-end encrypted, LAN-only',
+      'No account — pair with a QR code',
+    ],
+  },
+  {
+    title: 'Desktop integration',
+    items: [
+      'GNOME Shell top-bar indicator',
+      'Source-app detection on Wayland',
+      'Global shortcut + autostart on login',
+      'Screen color picker via XDG portal',
+    ],
+  },
+];
+---
+<section class="compare" id="compare">
+  <div class="wrap">
+    <div class="kicker mono">· WHAT SHIPS ·</div>
+    <h2>Everything in <span class="accent">v0.1</span>.</h2>
+    <p class="sub">No asterisks, no “coming soon” in disguise. This is the full feature set in the current build.</p>
+
+    <div class="cols grid-3">
+      {groups.map((g) => (
+        <div class="group">
+          <div class="g-title mono">{g.title}</div>
+          {g.items.map((it) => (
+            <div class="item">
+              <span class="tick"><Icon name="check" size={12} stroke={2.5} /></span>
+              <span>{it}</span>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
+<style>
+  .compare { padding: 140px 40px; background: rgba(255, 255, 255, 0.015); border-top: 1px solid var(--border-subtle); border-bottom: 1px solid var(--border-subtle); }
+  .kicker { font-size: 11px; font-weight: 700; letter-spacing: 2px; color: var(--accent); margin-bottom: 20px; }
+  h2 { margin: 0; font-size: clamp(36px, 5vw, 60px); font-weight: 700; line-height: 1.05; letter-spacing: -1.4px; }
+  .accent { color: var(--accent); }
+  .sub { margin: 20px 0 0; font-size: 17px; line-height: 1.55; color: var(--text-secondary); max-width: 620px; }
+  .cols { margin-top: 60px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border-subtle); border: 1px solid var(--border-subtle); border-radius: 16px; overflow: hidden; }
+  .group { background: var(--bg); padding: 28px; }
+  .g-title { font-size: 11px; font-weight: 700; letter-spacing: 1px; color: var(--text-tertiary); text-transform: uppercase; margin-bottom: 18px; }
+  .item { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; font-size: 13.5px; color: var(--text); line-height: 1.4; }
+  .tick { flex-shrink: 0; width: 18px; height: 18px; border-radius: 5px; background: rgba(233, 86, 120, 0.13); color: var(--accent); display: flex; align-items: center; justify-content: center; margin-top: 1px; }
+  @media (max-width: 900px) { .cols { grid-template-columns: 1fr; } }
+  @media (max-width: 640px) { .compare { padding: 100px 20px; } }
+</style>

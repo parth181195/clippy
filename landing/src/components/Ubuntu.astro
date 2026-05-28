@@ -1,0 +1,100 @@
+---
+import Button from './Button.astro';
+import Icon from './Icon.astro';
+
+const specs = [
+  ['Distro', 'Ubuntu 22.04+ · GNOME'],
+  ['Display', 'Wayland (native) · X11 fallback'],
+  ['Integration', 'GNOME Shell extension + tray'],
+  ['Stack', 'Electron + better-sqlite3'],
+  ['Install', '.deb (~78 MB)'],
+  ['License', 'GPLv3'],
+];
+const term = [
+  { p: '$', t: 'sudo apt install ./clippy_0.1.0_amd64.deb', cmd: true },
+  { t: 'Reading package lists... Done', dim: true },
+  { t: 'The following NEW package will be installed:', dim: true },
+  { t: '  clippy', txt: true },
+  { t: 'Setting up clippy (0.1.0) ...', orange: true },
+  { t: '✓ Desktop entry + autostart installed', ok: true },
+  { t: '✓ Launch Clippy, then enable the GNOME extension', ok: true },
+  { p: '$', t: 'gnome-extensions enable clippy@io.clippy', cmd: true },
+  { t: '↪ log out and back in once to load it', dim: true },
+];
+---
+<section class="ubuntu">
+  <div class="glow"></div>
+  <div class="wrap inner grid-2">
+    <div>
+      <div class="pill"><Icon name="puzzle" size={14} /> Built for Ubuntu + GNOME</div>
+      <h2>Not just a window.<br /><span class="orange">A GNOME citizen.</span></h2>
+      <p class="body">
+        Clippy is an Electron app — but it doesn't act like a stranger on your desktop. It ships a
+        native GNOME Shell extension for the top-bar indicator and source-app detection, captures the
+        Wayland clipboard, picks colors through the XDG desktop portal, registers a global shortcut,
+        and starts itself on login.
+      </p>
+
+      <div class="specs">
+        {specs.map(([k, v]) => (
+          <div class="spec">
+            <span class="sk mono">{k}</span>
+            <span class="sv mono">{v}</span>
+          </div>
+        ))}
+      </div>
+
+      <div class="dl">
+        <Button primary href="#download"><Icon name="download" size={14} /> Get the .deb</Button>
+        <code class="cmd mono"><span class="dollar">$</span> sudo apt install ./clippy_0.1.0_amd64.deb <Icon name="copy" size={13} class="ic" /></code>
+      </div>
+    </div>
+
+    <div class="terminal">
+      <div class="t-bar">
+        <span class="t-title">clippy — install — zsh</span>
+        <div class="t-dots"><span></span><span></span><span></span></div>
+      </div>
+      <div class="t-body mono">
+        {term.map((l) => (
+          <div class:list={['t-line', { ok: l.ok, dim: l.dim, orange: l.orange, txt: l.txt }]}>
+            {l.p && <span class="t-prompt">helios ~ <span class="dollar">{l.p}</span> </span>}{l.t}
+          </div>
+        ))}
+        <div class="t-line"><span class="t-prompt">helios ~ <span class="dollar">$</span> </span><span class="cursor"></span></div>
+      </div>
+    </div>
+  </div>
+</section>
+<style>
+  .ubuntu { position: relative; overflow: hidden; padding: 140px 40px; }
+  .glow { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 1000px; height: 700px; pointer-events: none; background: radial-gradient(ellipse 50% 40% at 50% 50%, rgba(233, 84, 32, 0.13) 0%, transparent 70%); }
+  .inner { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
+  .pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 100px; background: rgba(233, 84, 32, 0.13); color: var(--ubuntu); border: 1px solid rgba(233, 84, 32, 0.27); font-size: 12px; font-weight: 600; margin-bottom: 24px; }
+  h2 { margin: 0; font-size: clamp(36px, 5vw, 56px); font-weight: 700; line-height: 1.05; letter-spacing: -1.2px; }
+  .orange { color: var(--ubuntu); }
+  .body { margin-top: 28px; font-size: 16px; line-height: 1.6; color: var(--text-secondary); }
+  .specs { margin-top: 32px; }
+  .spec { display: grid; grid-template-columns: 150px 1fr; padding: 12px 0; border-top: 1px solid var(--border-subtle); font-size: 13px; }
+  .sk { color: var(--text-tertiary); text-transform: uppercase; font-size: 11px; letter-spacing: 0.6px; align-self: center; }
+  .sv { color: var(--text); }
+  .dl { margin-top: 32px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .cmd { display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 10px; background: var(--bg-solid); border: 1px solid var(--border-subtle); font-size: 13px; }
+  .dollar { color: var(--accent); }
+  .ic { color: var(--text-secondary); }
+
+  .terminal { background: #0F0F14; border-radius: 14px; overflow: hidden; border: 1px solid #2A2A36; box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5); }
+  .t-bar { height: 36px; background: #2C2C32; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; }
+  .t-title { font-size: 12px; color: var(--text); font-weight: 500; }
+  .t-dots { display: flex; gap: 6px; }
+  .t-dots span { width: 11px; height: 11px; border-radius: 6px; background: rgba(255, 255, 255, 0.12); }
+  .t-body { padding: 20px; font-size: 12px; line-height: 1.75; color: var(--text-secondary); }
+  .t-prompt { color: var(--green); }
+  .t-line.ok { color: var(--green); }
+  .t-line.dim { color: var(--text-tertiary); }
+  .t-line.orange { color: var(--ubuntu); }
+  .t-line.txt { color: var(--text); }
+  .cursor { display: inline-block; width: 8px; height: 14px; background: var(--text-secondary); vertical-align: middle; animation: cm-blink 1.1s steps(1) infinite; }
+  @media (max-width: 900px) { .inner { grid-template-columns: 1fr; gap: 48px; } }
+  @media (max-width: 640px) { .ubuntu { padding: 100px 20px; } }
+</style>

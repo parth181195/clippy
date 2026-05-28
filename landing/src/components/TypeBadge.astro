@@ -1,0 +1,20 @@
+---
+interface Props { type: string; label?: string; }
+const { type, label } = Astro.props;
+---
+<span class={`badge badge-${type}`}>{(label ?? type).toUpperCase()}</span>
+<style>
+  .badge {
+    display: inline-flex; align-items: center;
+    padding: 2px 7px; border-radius: 5px;
+    font-size: 9px; font-weight: 700; letter-spacing: 0.4px;
+    font-family: 'Geist', system-ui, sans-serif;
+  }
+  .badge-text  { background: var(--badge-text-bg);  color: var(--badge-text-fg); }
+  .badge-link  { background: var(--badge-link-bg);  color: var(--badge-link-fg); }
+  .badge-code  { background: var(--badge-code-bg);  color: var(--badge-code-fg); }
+  .badge-image { background: var(--badge-image-bg); color: var(--badge-image-fg); }
+  .badge-color { background: var(--badge-color-bg); color: var(--badge-color-fg); }
+  .badge-emoji { background: var(--badge-color-bg); color: var(--badge-color-fg); }
+  .badge-file  { background: var(--badge-file-bg);  color: var(--badge-file-fg); }
+</style>

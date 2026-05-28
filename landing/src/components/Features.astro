@@ -1,0 +1,163 @@
+---
+import Icon from './Icon.astro';
+import TypeBadge from './TypeBadge.astro';
+
+const searchRows = [
+  { type: 'text', text: 'push the migration before 5pm?', hit: true },
+  { type: 'code', text: 'docker compose up -d' },
+  { type: 'link', text: 'CLP-184 · multi-device sync' },
+];
+const swatches = [
+  { hex: '#E95678', name: 'Coral' },
+  { hex: '#7C7CFF', name: 'Indigo' },
+  { hex: '#5BC0BE', name: 'Teal' },
+  { hex: '#C792EA', name: 'Violet' },
+  { hex: '#FFCB6B', name: 'Amber' },
+];
+---
+<section class="features" id="features">
+  <div class="wrap">
+    <div class="kicker mono">· WHAT'S IN THE BOX ·</div>
+    <h2>Built for people who<br />copy a hundred things a day.</h2>
+
+    <div class="grid">
+      <!-- search -->
+      <article class="card">
+        <div class="visual">
+          <div class="searchbox">
+            <Icon name="search" size={14} class="ic" />
+            <span class="q">migration</span>
+            <span class="caret"></span>
+          </div>
+          <div class="results">
+            {searchRows.map((r) => (
+              <div class={`res ${r.hit ? 'hit' : ''}`}>
+                <TypeBadge type={r.type} />
+                <span class="rt">{r.text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div class="meta">
+          <h3>Search your whole history.</h3>
+          <p>Full-text search across text, links, code, and filenames. Type a few letters; the right clip is one Enter away.</p>
+        </div>
+      </article>
+
+      <!-- code -->
+      <article class="card">
+        <div class="visual">
+          <div class="codeblock">
+            <div class="cb-top"><TypeBadge type="code" label="rust" /><span class="cb-name mono">handler.rs</span><Icon name="copy" size={12} class="ic" /></div>
+            <pre class="mono"><span class="k">fn</span> <span class="fn">save_clip</span>(c: Clip) {'->'} Result&lt;()&gt; {'{'}
+  <span class="k">let</span> db = DB.lock().<span class="k">await</span>;
+  db.insert(c).<span class="k">await</span>?;
+  Ok(())
+{'}'}</pre>
+          </div>
+        </div>
+        <div class="meta">
+          <h3>Code, highlighted.</h3>
+          <p>Clippy spots code and syntax-highlights it in the panel. Reads like an editor, pastes like plain text.</p>
+        </div>
+      </article>
+
+      <!-- file -->
+      <article class="card">
+        <div class="visual file-v">
+          <div class="file-glyph"><Icon name="file" size={30} /><span class="ext mono">PNG</span></div>
+          <div class="fname mono">screenshot.png</div>
+          <div class="fbar"><span style="width:78%"></span></div>
+          <div class="fto mono"><Icon name="smartphone" size={11} /> → Pixel 7 · 0.4 s left</div>
+        </div>
+        <div class="meta">
+          <h3>Send files to your phone.</h3>
+          <p>Drop a file on the panel and it lands on your phone over the LAN. Up to 10 MB. No upload, no link, no expiry.</p>
+        </div>
+      </article>
+
+      <!-- color (wide) -->
+      <article class="card wide">
+        <div class="visual swatches">
+          {swatches.map((c) => (
+            <div class="sw">
+              <div class="sw-chip" style={`background:${c.hex}`}></div>
+              <div class="sw-name">{c.name}</div>
+              <div class="sw-hex mono">{c.hex}</div>
+            </div>
+          ))}
+        </div>
+        <div class="meta">
+          <h3>Color clips, native.</h3>
+          <p>Copy <span class="mono">#E95678</span> anywhere and Clippy swatches it — HEX, RGB, HSL, OKLCH, plus tints. Tap any format to copy it.</p>
+        </div>
+      </article>
+
+      <!-- incognito -->
+      <article class="card">
+        <div class="visual incog">
+          <Icon name="eyeOff" size={48} stroke={1.4} class="eye" />
+          <div class="incog-chip mono">INCOGNITO · 4:32 LEFT</div>
+          <div class="incog-key mono">Ctrl + Shift + I</div>
+        </div>
+        <div class="meta">
+          <h3>Incognito mode.</h3>
+          <p>Hit Ctrl+Shift+I and nothing's saved. It switches itself back on after five minutes — for passwords, OTPs, and things you'd rather forget.</p>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+<style>
+  .features { padding: 140px 40px; }
+  .kicker { font-size: 11px; font-weight: 700; letter-spacing: 2px; color: var(--accent); margin-bottom: 20px; }
+  h2 { margin: 0; font-size: clamp(36px, 5vw, 60px); font-weight: 700; line-height: 1.05; letter-spacing: -1.4px; max-width: 760px; }
+  .grid { margin-top: 80px; display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 340px; gap: 1px; background: var(--border-subtle); border: 1px solid var(--border-subtle); border-radius: 16px; overflow: hidden; }
+  .card { background: var(--bg); padding: 32px; display: flex; flex-direction: column; justify-content: space-between; gap: 20px; overflow: hidden; }
+  .card.wide { grid-column: span 2; }
+  .visual { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; }
+  .meta h3 { margin: 0; font-size: 19px; font-weight: 600; letter-spacing: -0.3px; }
+  .meta p { margin: 8px 0 0; font-size: 13.5px; line-height: 1.55; color: var(--text-secondary); }
+  .meta .mono { color: var(--accent); }
+  .ic { color: var(--text-secondary); }
+
+  .searchbox { display: flex; align-items: center; gap: 8px; width: 100%; max-width: 320px; padding: 10px 14px; border-radius: 10px; background: var(--bg-solid); border: 1px solid var(--accent); box-shadow: 0 0 0 4px rgba(233, 86, 120, 0.13); }
+  .searchbox .q { flex: 1; font-size: 13px; }
+  .caret { width: 1px; height: 14px; background: var(--text); animation: cm-blink 1s steps(1) infinite; }
+  .results { margin-top: 10px; width: 100%; max-width: 320px; display: flex; flex-direction: column; gap: 4px; }
+  .res { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 7px; border: 1px solid transparent; }
+  .res.hit { background: rgba(233, 86, 120, 0.07); border-color: rgba(233, 86, 120, 0.27); }
+  .rt { flex: 1; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .codeblock { width: 100%; max-width: 320px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border-subtle); }
+  .cb-top { display: flex; align-items: center; gap: 6px; padding: 6px 10px; background: var(--bg-solid); border-bottom: 1px solid var(--border-subtle); }
+  .cb-name { font-size: 11px; color: var(--text-secondary); flex: 1; }
+  .codeblock pre { margin: 0; padding: 12px; font-size: 11.5px; line-height: 1.55; background: var(--bg); white-space: pre; overflow: hidden; }
+  .codeblock .k { color: #C792EA; } .codeblock .fn { color: #7CE8B5; }
+
+  .file-v { flex-direction: column; gap: 12px; }
+  .file-glyph { display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--text-secondary); }
+  .file-glyph .ext { font-size: 9px; font-weight: 700; color: var(--badge-image-fg); }
+  .fname { font-size: 12px; }
+  .fbar { width: 200px; height: 4px; background: var(--surface-raised); border-radius: 2px; overflow: hidden; }
+  .fbar span { display: block; height: 100%; background: var(--accent); }
+  .fto { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; color: var(--accent); }
+
+  .swatches { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  .sw { background: var(--bg-solid); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 10px; width: 96px; }
+  .sw-chip { height: 56px; border-radius: 6px; }
+  .sw-name { margin-top: 8px; font-size: 10px; font-weight: 500; }
+  .sw-hex { font-size: 10px; color: var(--text-secondary); margin-top: 2px; }
+
+  .incog { flex-direction: column; gap: 12px; }
+  .incog .eye { color: var(--warn); }
+  .incog-chip { display: inline-flex; padding: 5px 11px; border-radius: 7px; background: rgba(165, 92, 92, 0.13); color: var(--warn); font-size: 10.5px; font-weight: 700; letter-spacing: 0.6px; }
+  .incog-key { font-size: 10.5px; color: var(--text-tertiary); }
+
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: 1fr; grid-auto-rows: auto; }
+    .card.wide { grid-column: span 1; }
+    .card { min-height: 300px; }
+  }
+  @media (max-width: 640px) { .features { padding: 100px 20px; } }
+</style>

@@ -1,0 +1,160 @@
+---
+import Button from './Button.astro';
+import Icon from './Icon.astro';
+import TypeBadge from './TypeBadge.astro';
+
+const betaTags = ['LAN-only', 'no account', 'end-to-end encrypted', 'GPLv3', 'open source', 'Ubuntu + Android'];
+---
+<section class="hero" id="top">
+  <div class="glow"></div>
+
+  <div class="wrap hero-copy">
+    <div class="eyebrow">
+      <span class="dot"></span>
+      v0.1 · invite-only beta · free &amp; open source
+    </div>
+
+    <h1>Your clipboard<br />deserves <em>better</em>.</h1>
+
+    <p class="sub">
+      Copy-paste was invented in 1973. Most apps still treat it like a one-slot register.
+      Clippy is a clipboard that remembers, searches, and follows you to your phone.
+    </p>
+
+    <div class="ctas">
+      <Button primary large href="#download"><Icon name="download" size={16} /> Download for Ubuntu</Button>
+      <Button ghost large href="#download">Get on Android</Button>
+    </div>
+    <div class="meta mono">.deb · ~78 MB · Ubuntu 22.04+ · GPLv3</div>
+  </div>
+
+  <!-- product panel -->
+  <div class="wrap panel-wrap">
+    <div class="panel">
+      <div class="panel-cards">
+        <article class="card active">
+          <div class="card-top"><TypeBadge type="code" label="rust" /><span class="src mono">handler.rs</span></div>
+          <pre class="code"><span class="k">fn</span> <span class="fn">save_clip</span>(c: Clip) {'->'} Result&lt;()&gt; {'{'}
+  <span class="k">let</span> db = DB.lock().<span class="k">await</span>;
+  db.insert(c).<span class="k">await</span>?;
+  Ok(())
+{'}'}</pre>
+        </article>
+
+        <article class="card">
+          <div class="card-top"><TypeBadge type="link" /></div>
+          <div class="link-fav">A</div>
+          <div class="card-title">anthropic/clippy</div>
+          <div class="card-sub mono">github.com</div>
+        </article>
+
+        <article class="card">
+          <div class="card-top"><TypeBadge type="image" /></div>
+          <div class="thumb"></div>
+          <div class="card-sub mono">screenshot.png</div>
+        </article>
+
+        <article class="card">
+          <div class="card-top"><TypeBadge type="color" /></div>
+          <div class="swatch"></div>
+          <div class="card-title mono">#E95678</div>
+          <div class="card-sub mono">rgb(233 86 120)</div>
+        </article>
+
+        <article class="card">
+          <div class="card-top"><TypeBadge type="text" /></div>
+          <div class="card-body">Hey, can you push the migration before 5pm? Need it on staging to test.</div>
+        </article>
+
+        <article class="card hide-sm">
+          <div class="card-top"><TypeBadge type="file" /></div>
+          <div class="file-glyph"><Icon name="file" size={26} /><span class="ext">PDF</span></div>
+          <div class="card-sub mono">brief.pdf · 184 KB</div>
+        </article>
+      </div>
+    </div>
+
+    <div class="hint">
+      <span class="key mono">Ctrl</span><span>+</span><span class="key mono">Alt</span><span>+</span>
+      <span class="key mono">Shift</span><span>+</span><span class="key mono">V</span>
+      <span class="hint-label">to summon</span>
+    </div>
+  </div>
+
+  <!-- honest beta strip (replaces the fabricated press marquee) -->
+  <div class="beta-strip">
+    <div class="wrap strip-inner">
+      {betaTags.map((t) => <span class="strip-tag mono">{t}</span>)}
+    </div>
+  </div>
+</section>
+
+<style>
+  .hero { position: relative; overflow: hidden; padding: 80px 40px 0; }
+  .glow {
+    position: absolute; top: 100px; left: 50%; transform: translateX(-50%);
+    width: 1100px; height: 600px; pointer-events: none; z-index: 0;
+    background: radial-gradient(ellipse 50% 40% at 50% 50%, rgba(233, 86, 120, 0.2) 0%, transparent 70%);
+  }
+  .hero-copy { position: relative; z-index: 1; text-align: center; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 12px; border-radius: 100px; margin-bottom: 28px;
+    background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-subtle);
+    font-size: 12px; color: var(--text-secondary); font-weight: 500;
+  }
+  .dot { width: 6px; height: 6px; border-radius: 3px; background: var(--accent); animation: cm-pulse 2s ease-in-out infinite; }
+  h1 { margin: 0; font-size: clamp(48px, 7.5vw, 96px); font-weight: 700; line-height: 0.95; letter-spacing: -3px; }
+  h1 em { color: var(--accent); font-style: italic; font-weight: 800; }
+  .sub { margin: 28px auto 0; font-size: 19px; line-height: 1.5; color: var(--text-secondary); max-width: 620px; }
+  .ctas { margin-top: 36px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .meta { margin-top: 16px; font-size: 12px; color: var(--text-tertiary); }
+
+  .panel-wrap { position: relative; z-index: 1; margin-top: 96px; }
+  .panel {
+    background: rgba(22, 22, 31, 0.92); border: 1px solid var(--border-subtle);
+    border-radius: 16px; padding: 16px; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+  }
+  .panel-cards { display: flex; gap: 12px; height: 300px; }
+  .card {
+    flex: 1; min-width: 0; background: var(--surface); border: 1px solid var(--border-subtle);
+    border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px; overflow: hidden;
+  }
+  .card.active { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(233, 86, 120, 0.13); }
+  .card-top { display: flex; align-items: center; gap: 6px; justify-content: space-between; }
+  .src { font-size: 10px; color: var(--text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .code { margin: 0; font-family: var(--mono); font-size: 10.5px; line-height: 1.5; color: var(--text); white-space: pre; overflow: hidden; }
+  .code .k { color: #C792EA; }
+  .code .fn { color: #7CE8B5; }
+  .card-title { font-size: 13px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card-sub { font-size: 10.5px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: auto; }
+  .card-body { font-size: 12.5px; line-height: 1.5; color: var(--text); overflow: hidden; }
+  .link-fav {
+    width: 30px; height: 30px; border-radius: 7px; background: linear-gradient(135deg, #7C7CFF, #5C5CD9);
+    display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 14px;
+  }
+  .thumb { flex: 1; border-radius: 7px; background: linear-gradient(135deg, rgba(233, 86, 120, 0.3), #2A2A38); }
+  .swatch { height: 70px; border-radius: 7px; background: #E95678; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25); }
+  .file-glyph { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--text-secondary); position: relative; }
+  .file-glyph .ext { font-size: 9px; font-weight: 700; letter-spacing: 0.5px; color: var(--badge-file-fg); }
+
+  .hint {
+    position: absolute; top: -14px; right: 60px;
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 12px 6px 6px; border-radius: 100px;
+    background: var(--text); color: var(--bg); font-size: 11px; font-weight: 600;
+    white-space: nowrap; box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+  }
+  .hint .key { padding: 2px 6px; border-radius: 5px; background: rgba(0, 0, 0, 0.18); }
+  .hint-label { padding-left: 4px; }
+
+  .beta-strip { margin-top: 84px; padding: 22px 0; border-top: 1px solid var(--border-subtle); border-bottom: 1px solid var(--border-subtle); }
+  .strip-inner { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; padding: 0 40px; }
+  .strip-tag {
+    font-size: 12px; color: var(--text-tertiary); letter-spacing: 0.3px;
+    padding: 5px 12px; border-radius: 100px; border: 1px solid var(--border-subtle);
+  }
+  @media (max-width: 900px) { .panel-cards { height: auto; flex-wrap: wrap; } .card { flex: 1 1 40%; } .hint { display: none; } }
+  @media (max-width: 640px) { .hero { padding: 60px 20px 0; } }
+</style>

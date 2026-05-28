@@ -1,0 +1,56 @@
+---
+import Kbd from './Kbd.astro';
+
+const rows = [
+  { keys: ['Ctrl', 'Alt', 'Shift', 'V'], label: 'Open the panel' },
+  { keys: ['Ctrl', 'Alt', 'V'], label: 'Quick-paste the last clip' },
+  { keys: ['↑', '↓'], label: 'Navigate clips' },
+  { keys: ['Enter'], label: 'Paste selected' },
+  { keys: ['Shift', 'Enter'], label: 'Paste into a terminal' },
+  { keys: ['Ctrl', 'Shift', 'S'], label: 'Send selected to phone' },
+  { keys: ['Ctrl', 'S'], label: 'Favorite clip' },
+  { keys: ['P'], label: 'Pin clip to top' },
+  { keys: ['E'], label: 'Edit clip' },
+  { keys: ['Tab'], label: 'Cycle type filter' },
+  { keys: ['/'], label: 'Focus search' },
+  { keys: ['Ctrl', 'Shift', 'I'], label: 'Toggle incognito' },
+];
+---
+<section class="hotkeys" id="hotkeys">
+  <div class="wrap">
+    <div class="kicker mono">· KEYBOARD-FIRST ·</div>
+    <h2>Twelve shortcuts and you<br />never touch the mouse again.</h2>
+    <p class="sub">Every action has a key. The panel shortcut is rebindable; the rest live inside the panel and stay out of the way of your system bindings.</p>
+
+    <div class="grid">
+      {rows.map((r) => (
+        <div class="row">
+          <span class="label">{r.label}</span>
+          <span class="keys">
+            {r.keys.map((k, j) => (
+              <>{j > 0 && <span class="plus">+</span>}<Kbd>{k}</Kbd></>
+            ))}
+          </span>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
+<style>
+  .hotkeys { padding: 140px 40px; }
+  .kicker { font-size: 11px; font-weight: 700; letter-spacing: 2px; color: var(--accent); margin-bottom: 20px; }
+  h2 { margin: 0; font-size: clamp(36px, 5vw, 60px); font-weight: 700; line-height: 1.05; letter-spacing: -1.4px; }
+  .sub { margin: 20px 0 0; font-size: 17px; line-height: 1.55; color: var(--text-secondary); max-width: 620px; }
+  .grid { margin-top: 60px; display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--border-subtle); border-radius: 16px; overflow: hidden; }
+  .row { padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; background: var(--bg); }
+  .row:nth-child(odd) { border-right: 1px solid var(--border-subtle); }
+  .row:not(:nth-last-child(-n+2)) { border-bottom: 1px solid var(--border-subtle); }
+  .label { font-size: 13.5px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .keys { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
+  .plus { color: var(--text-tertiary); font-size: 12px; }
+  @media (max-width: 700px) {
+    .grid { grid-template-columns: 1fr; }
+    .row { border-right: none !important; border-bottom: 1px solid var(--border-subtle) !important; }
+  }
+  @media (max-width: 640px) { .hotkeys { padding: 100px 20px; } }
+</style>

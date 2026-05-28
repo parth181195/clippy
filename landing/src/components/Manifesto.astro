@@ -1,0 +1,55 @@
+---
+const principles = [
+  { n: '01', kicker: 'It remembers.', body: 'Every clip. Until you say otherwise.' },
+  { n: '02', kicker: 'It follows you.', body: 'Desktop to phone, phone to desktop. Files up to 10 MB. No cloud, no account.' },
+  { n: '03', kicker: 'It respects you.', body: 'Keyboard-first. LAN-only. Open source. Free.' },
+];
+---
+<section class="manifesto">
+  <div class="inner">
+    <div class="kicker mono">· MANIFESTO ·</div>
+    <h2>
+      The clipboard is the most-used,<br />
+      <span class="dim">least-respected</span> tool on your computer.
+    </h2>
+
+    <div class="cols grid-2">
+      <p>
+        You copy <strong>hundreds of things a day</strong>. A URL, a Slack message, an OTP code,
+        a sed expression you finally got right after twenty minutes of fighting man pages.
+        Then you copy one more thing — and it&apos;s all gone.
+      </p>
+      <p>
+        Most clipboard managers are an afterthought: a daemon hidden in a tray icon with a UI that
+        feels like it&apos;s personally insulting you.
+        <strong> Clippy is the one that takes itself seriously.</strong>
+      </p>
+    </div>
+
+    <div class="principles grid-3">
+      {principles.map((p) => (
+        <div class="principle">
+          <div class="pn mono">{p.n}</div>
+          <div class="pk">{p.kicker}</div>
+          <div class="pb">{p.body}</div>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
+<style>
+  .manifesto { padding: 180px 40px 140px; }
+  .inner { max-width: 980px; margin: 0 auto; }
+  .kicker { font-size: 11px; font-weight: 700; letter-spacing: 2px; color: var(--accent); margin-bottom: 28px; }
+  h2 { margin: 0; font-size: clamp(36px, 5vw, 64px); font-weight: 700; line-height: 1.05; letter-spacing: -1.6px; }
+  .dim { color: var(--text-tertiary); }
+  .cols { margin-top: 60px; display: grid; grid-template-columns: 1fr 1fr; gap: 64px; }
+  .cols p { margin: 0; font-size: 17px; line-height: 1.6; color: var(--text-secondary); }
+  .cols strong { color: var(--text); font-weight: 600; }
+  .principles { margin-top: 100px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; }
+  .principle { padding-top: 24px; border-top: 1px solid var(--border-strong); }
+  .pn { font-size: 11px; color: var(--accent); font-weight: 700; letter-spacing: 1.4px; margin-bottom: 14px; }
+  .pk { font-size: 22px; font-weight: 600; letter-spacing: -0.4px; margin-bottom: 10px; }
+  .pb { font-size: 14px; color: var(--text-secondary); line-height: 1.55; }
+  @media (max-width: 640px) { .manifesto { padding: 100px 20px 80px; } }
+</style>

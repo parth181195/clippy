@@ -1,0 +1,142 @@
+---
+import Icon from './Icon.astro';
+
+const phoneRows = [
+  { type: 'link', text: 'anthropic/clippy', fg: 'var(--badge-link-fg)' },
+  { type: 'code', text: 'docker compose up', fg: 'var(--badge-code-fg)' },
+  { type: 'text', text: 'Hey, can you push…', fg: 'var(--badge-text-fg)' },
+  { type: 'color', text: '#E95678', fg: '#E95678' },
+  { type: 'file', text: 'brief.pdf · 184 KB', fg: 'var(--badge-file-fg)' },
+];
+const flying = [
+  { label: 'github.com/anthropic/clippy', badge: 'LINK', ex: 0, ey: -150, delay: '0s' },
+  { label: 'notes.pdf · 840 KB', badge: 'FILE', ex: -10, ey: -190, delay: '1.6s' },
+  { label: '🫠', badge: 'EMOJI', emoji: true, ex: 30, ey: -230, delay: '3.2s' },
+];
+---
+<section class="sync">
+  <div class="wrap head">
+    <div class="kicker mono">· DESKTOP ↔ PHONE ·</div>
+    <h2>Copy on your laptop.<br />Paste on your phone.<br /><span class="dim">Or the other way around.</span></h2>
+    <p class="sub">
+      Direct device-to-device over your local network, end-to-end encrypted.
+      Files up to 10 MB. No accounts, no servers, no inbox in the cloud.
+    </p>
+  </div>
+
+  <div class="stage">
+    <!-- laptop -->
+    <div class="laptop">
+      <div class="lid">
+        <div class="screen">
+          <div class="wallpaper"></div>
+          <div class="topbar"><span>Activities</span><span>14:32</span></div>
+          <div class="mini-panel">
+            {['code', 'link', 'image', 'color', 'text'].map((t, i) => (
+              <div class={`mc mc-${t}`} style={i === 0 ? 'border-color: var(--accent)' : ''}></div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div class="base"></div>
+    </div>
+
+    <!-- connection -->
+    <div class="wire"><span class="wire-tag mono">E2E ENCRYPTED</span></div>
+
+    <!-- phone -->
+    <div class="phone">
+      <div class="phone-screen">
+        <div class="status"><span>9:41</span><span class="notch"></span><span>92%</span></div>
+        <div class="phead">
+          <div class="ptitle">Recent</div>
+          <div class="psync"><span class="pdot"></span> synced with desktop</div>
+        </div>
+        <div class="prows">
+          {phoneRows.map((r) => (
+            <div class="prow">
+              <div class="picon" style={`background:${r.type === 'color' ? r.fg : 'var(--surface)'};color:${r.fg}`}>
+                {r.type === 'link' && <Icon name="link" size={13} />}
+                {r.type === 'code' && <Icon name="code" size={13} />}
+                {r.type === 'file' && <Icon name="file" size={13} />}
+                {r.type === 'text' && <span class="pt">T</span>}
+              </div>
+              <div class="pmeta">
+                <div class="ptype mono" style={`color:${r.fg}`}>{r.type}</div>
+                <div class="ptext">{r.text}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+
+    <!-- flying clips -->
+    {flying.map((f) => (
+      <div class="fly" style={`--end-x:${f.ex}px;--end-y:${f.ey}px;animation-delay:${f.delay}`}>
+        <span class="fly-badge">{f.badge}</span>
+        <span class={f.emoji ? 'fly-emoji' : 'mono'}>{f.label}</span>
+      </div>
+    ))}
+  </div>
+</section>
+<style>
+  .sync { padding: 120px 40px; border-top: 1px solid var(--border-subtle); border-bottom: 1px solid var(--border-subtle); background: rgba(255, 255, 255, 0.015); overflow: hidden; }
+  .head { text-align: center; }
+  .kicker { font-size: 11px; font-weight: 700; letter-spacing: 2px; color: var(--accent); margin-bottom: 20px; }
+  h2 { margin: 0; font-size: clamp(36px, 5vw, 60px); font-weight: 700; line-height: 1.05; letter-spacing: -1.4px; }
+  .dim { color: var(--text-tertiary); }
+  .sub { margin: 24px auto 0; max-width: 580px; font-size: 16px; line-height: 1.55; color: var(--text-secondary); }
+
+  .stage { position: relative; max-width: 1000px; height: 460px; margin: 60px auto 0; display: flex; align-items: center; justify-content: space-between; }
+  .laptop { width: 520px; transform: perspective(1200px) rotateY(8deg); transform-origin: right center; }
+  .lid { background: #1A1A22; border-radius: 14px 14px 4px 4px; padding: 12px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4); }
+  .screen { position: relative; height: 300px; border-radius: 6px; overflow: hidden; background: #0E0E15; border: 1px solid #2A2A36; }
+  .wallpaper { position: absolute; inset: 0; background: radial-gradient(ellipse 80% 60% at 70% 100%, rgba(233, 84, 32, 0.2) 0%, rgba(107, 37, 64, 0.13) 35%, #1A0E1F 75%, #0E080F 100%); }
+  .topbar { position: absolute; top: 0; left: 0; right: 0; height: 20px; background: rgba(0, 0, 0, 0.4); display: flex; align-items: center; justify-content: space-between; padding: 0 10px; font-size: 9px; color: #fff; opacity: 0.7; }
+  .mini-panel { position: absolute; bottom: 8px; left: 8px; right: 8px; display: flex; gap: 5px; height: 84px; padding: 8px; background: rgba(22, 22, 31, 0.85); border: 1px solid var(--border-subtle); border-radius: 10px; }
+  .mc { flex: 1; border-radius: 5px; border: 1px solid var(--border-subtle); background: var(--surface); }
+  .mc-image { background: linear-gradient(135deg, rgba(233, 86, 120, 0.3), #2A2A38); }
+  .mc-color { background: #E95678; }
+  .base { height: 14px; background: linear-gradient(180deg, #1A1A22, #0E0E15); border-radius: 0 0 18px 18px; box-shadow: 0 20px 30px rgba(0, 0, 0, 0.3); }
+
+  .wire { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 140px; height: 1px; background: linear-gradient(90deg, transparent, var(--accent), transparent); }
+  .wire-tag { position: absolute; top: -8px; left: 50%; transform: translateX(-50%); padding: 2px 8px; border-radius: 5px; background: var(--accent); color: #fff; font-size: 9px; font-weight: 700; white-space: nowrap; }
+
+  .phone { width: 240px; transform: perspective(1200px) rotateY(-14deg); transform-origin: left center; }
+  .phone-screen { border-radius: 26px; padding: 6px; background: #000; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(255, 255, 255, 0.06); }
+  .phone-screen > * { }
+  .status { height: 26px; padding: 0 14px; display: flex; align-items: center; justify-content: space-between; font-size: 10px; font-weight: 600; position: relative; }
+  .notch { position: absolute; top: 6px; left: 50%; transform: translateX(-50%); width: 10px; height: 10px; border-radius: 5px; background: #000; }
+  .phead { padding: 4px 14px 12px; }
+  .ptitle { font-size: 18px; font-weight: 600; letter-spacing: -0.4px; }
+  .psync { margin-top: 6px; display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 8px; background: var(--surface); border: 1px solid var(--border-subtle); font-size: 9px; color: var(--text-secondary); }
+  .pdot { width: 4px; height: 4px; border-radius: 2px; background: var(--accent); }
+  .prow { display: flex; align-items: center; gap: 9px; padding: 8px 14px; border-top: 1px solid var(--border-subtle); }
+  .picon { width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .pt { font-size: 9px; font-weight: 700; }
+  .pmeta { min-width: 0; }
+  .ptype { font-size: 7.5px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; }
+  .ptext { font-size: 11px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .fly {
+    position: absolute; left: 44%; top: 56%;
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 12px; border-radius: 10px; white-space: nowrap;
+    background: rgba(31, 31, 42, 0.95); backdrop-filter: blur(12px);
+    border: 1px solid rgba(233, 86, 120, 0.4);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3), 0 0 0 4px rgba(233, 86, 120, 0.07);
+    font-size: 12px; color: var(--text); font-weight: 500;
+    animation: cm-fly 5s ease-in-out infinite; pointer-events: none;
+  }
+  .fly-badge { padding: 2px 6px; border-radius: 4px; background: rgba(233, 86, 120, 0.13); color: var(--accent); font-size: 9px; font-weight: 700; }
+  .fly-emoji { font-size: 18px; }
+
+  @media (max-width: 900px) {
+    .stage { flex-direction: column; height: auto; gap: 40px; }
+    .laptop, .phone { transform: none; }
+    .laptop { width: 100%; max-width: 420px; }
+    .wire { display: none; }
+    .fly { display: none; }
+  }
+</style>

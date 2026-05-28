@@ -1,0 +1,81 @@
+---
+import Icon from './Icon.astro';
+
+const rows = [
+  ['Local LAN only', 'Clips and files move device-to-device over your network. They never touch a server we run.'],
+  ['Zero accounts', 'No email, no sign-up, no cloud sync. Scan a QR code once to pair.'],
+  ['End-to-end encrypted', 'libsodium secretbox (XSalsa20-Poly1305). A 32-byte key is exchanged in the pairing QR — never over the wire.'],
+  ['Open source', 'GPLv3. Read every byte of the desktop app and the Android client.'],
+  ['No telemetry', "There's no analytics pipeline. No “anonymous usage data,” no crash reporter."],
+];
+---
+<section class="privacy" id="privacy">
+  <div class="wrap">
+    <div class="kicker mono">· PRIVACY ·</div>
+    <h2>Nothing leaves<br />your network. Ever.</h2>
+    <p class="sub">Your clipboard holds passwords, draft messages, half-formed thoughts. Clippy is built so it physically can't phone home with any of it.</p>
+
+    <div class="body grid-2">
+      <div class="diagram">
+        <div class="lan">
+          <span class="lan-label mono">YOUR LAN · 192.168.1.0/24</span>
+          <div class="devices">
+            <div class="device">
+              <div class="d-icon"><Icon name="monitor" size={32} /></div>
+              <div class="d-name">desktop</div>
+              <div class="d-ip mono">192.168.1.42</div>
+            </div>
+            <div class="link"><span class="link-tag mono">E2E ENCRYPTED</span></div>
+            <div class="device">
+              <div class="d-icon"><Icon name="smartphone" size={32} /></div>
+              <div class="d-name">Pixel 7</div>
+              <div class="d-ip mono">192.168.1.78</div>
+            </div>
+          </div>
+        </div>
+        <div class="cloud">
+          <svg width="32" height="20" viewBox="0 0 32 20" fill="none" stroke="var(--text-tertiary)" stroke-width="1.4" stroke-linecap="round">
+            <path d="M8 16h16a4 4 0 0 0 0-8c0-3-3-5-6-5s-6 2-6 5a4 4 0 0 0-4 8z" fill="var(--bg)" />
+            <line x1="3" y1="18" x2="29" y2="3" stroke="var(--warn)" stroke-width="1.6" />
+          </svg>
+          <span class="mono">no cloud</span>
+        </div>
+      </div>
+
+      <div class="bullets">
+        {rows.map(([k, v]) => (
+          <div class="bullet">
+            <div class="bk">{k}</div>
+            <div class="bv">{v}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+</section>
+<style>
+  .privacy { padding: 140px 40px; border-top: 1px solid var(--border-subtle); border-bottom: 1px solid var(--border-subtle); }
+  .kicker { font-size: 11px; font-weight: 700; letter-spacing: 2px; color: var(--accent); margin-bottom: 20px; }
+  h2 { margin: 0; font-size: clamp(36px, 5vw, 60px); font-weight: 700; line-height: 1.05; letter-spacing: -1.4px; }
+  .sub { margin: 20px 0 0; font-size: 17px; line-height: 1.55; color: var(--text-secondary); max-width: 620px; }
+  .body { margin-top: 60px; display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: center; }
+
+  .diagram { position: relative; background: var(--bg); border: 1px solid var(--border-subtle); border-radius: 16px; padding: 36px; aspect-ratio: 1.1 / 1; }
+  .lan { position: absolute; inset: 36px; border: 1.5px dashed var(--border-strong); border-radius: 12px; padding: 24px; }
+  .lan-label { position: absolute; top: -10px; left: 16px; background: var(--bg); padding: 0 8px; font-size: 10px; color: var(--text-tertiary); letter-spacing: 1.5px; font-weight: 600; }
+  .devices { display: flex; justify-content: space-between; align-items: center; height: 100%; }
+  .device { text-align: center; }
+  .d-icon { width: 80px; height: 80px; margin: 0 auto; border-radius: 14px; background: rgba(233, 86, 120, 0.13); border: 1px solid var(--accent); color: var(--accent); display: flex; align-items: center; justify-content: center; }
+  .d-name { margin-top: 8px; font-size: 12px; font-weight: 500; }
+  .d-ip { font-size: 10px; color: var(--text-tertiary); }
+  .link { flex: 1; margin: 0 16px; height: 1px; background: var(--accent); position: relative; }
+  .link-tag { position: absolute; top: -8px; left: 50%; transform: translateX(-50%); padding: 2px 8px; border-radius: 5px; background: var(--accent); color: #fff; font-size: 9px; font-weight: 700; white-space: nowrap; }
+  .cloud { position: absolute; top: 8px; right: 36px; display: inline-flex; align-items: center; gap: 6px; font-size: 10px; color: var(--text-tertiary); }
+
+  .bullets { display: flex; flex-direction: column; }
+  .bullet { display: grid; grid-template-columns: 180px 1fr; gap: 24px; padding: 20px 0; border-top: 1px solid var(--border-subtle); align-items: baseline; }
+  .bk { font-size: 15px; font-weight: 600; letter-spacing: -0.2px; }
+  .bv { font-size: 14px; color: var(--text-secondary); line-height: 1.55; }
+  @media (max-width: 900px) { .body { grid-template-columns: 1fr; } .bullet { grid-template-columns: 1fr; gap: 6px; } }
+  @media (max-width: 640px) { .privacy { padding: 100px 20px; } }
+</style>
