@@ -14,7 +14,15 @@ ClippyMode clippyModeFromString(String? s) => switch (s) {
 /// reads them on the next rebuild. The `…Dark` field names are historical —
 /// they hold the *current* mode's value, not necessarily a dark one.
 class ClippyTokens {
-  static const accent = Color(0xFFE95678);
+  static Color accent = const Color(0xFFE95678);
+
+  /// Parse a #rrggbb hex (desktop accent) into the runtime accent color.
+  static void applyAccent(String? hex) {
+    if (hex == null) return;
+    final m = RegExp(r'^#?([\da-fA-F]{6})$').firstMatch(hex.trim());
+    if (m == null) return;
+    accent = Color(0xFF000000 | int.parse(m.group(1)!, radix: 16));
+  }
 
   static Color bgDark = const Color(0xFF16161F);
   static Color bgSolidDark = const Color(0xFF0E0E15);

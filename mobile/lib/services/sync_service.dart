@@ -288,7 +288,10 @@ class SyncService extends ChangeNotifier {
       } else if (env.plugin == 'file_transfer') {
         await _files.handle(env);
       } else if (env.plugin == 'core' && env.type == 'THEME') {
-        await ThemeController.instance.setFromString(env.payload['mode'] as String?);
+        await ThemeController.instance.applyFromDesktop(
+          env.payload['mode'] as String?,
+          env.payload['accent'] as String?,
+        );
       }
     } catch (e) {
       debugPrint('[clippy] env parse failed: $e');

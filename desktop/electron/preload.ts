@@ -56,7 +56,7 @@ const api = {
 
   pickColor: () => ipcRenderer.invoke(IPC.pickColor) as Promise<string | null>,
   copyText: (text: string) => ipcRenderer.invoke(IPC.copyText, text) as Promise<void>,
-  syncTheme: (mode: string) => ipcRenderer.invoke(IPC.syncTheme, mode) as Promise<void>,
+  syncTheme: (mode: string, accent: string) => ipcRenderer.invoke(IPC.syncTheme, mode, accent) as Promise<void>,
   onConnState: (cb: (s: ConnStatus) => void) => {
     const h = (_e: any, s: ConnStatus) => cb(s);
     ipcRenderer.on(IPC.EVT_CONN_STATE, h);

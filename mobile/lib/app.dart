@@ -14,15 +14,19 @@ class ClippyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<ClippyMode>(
-      valueListenable: ThemeController.instance.notifier,
-      builder: (context, mode, _) {
+    return ValueListenableBuilder<int>(
+      valueListenable: ThemeController.instance.rev,
+      builder: (context, rev, _) {
         return MaterialApp(
           title: 'Clippy',
           debugShowCheckedModeBanner: false,
           scaffoldMessengerKey: clippyMessengerKey,
-          theme: clippyThemeFor(mode),
-          home: const HomeShell(),
+          theme: clippyThemeFor(ThemeController.instance.mode),
+          // Key by the revision so the whole subtree rebuilds on any theme OR
+          // accent change — widgets read ClippyTokens static colors at build
+          // time and otherwise wouldn't repaint until navigated. Selected tab
+          // survives via the module-level _savedTab.
+          home: HomeShell(key: ValueKey(rev)),
         );
       },
     );
@@ -35,8 +39,11 @@ class HomeShell extends StatefulWidget {
   State<HomeShell> createState() => _HomeShellState();
 }
 
+// Survives the keyed rebuild on theme change so we don't snap back to Recent.
+int _savedTab = 0;
+
 class _HomeShellState extends State<HomeShell> {
-  int _idx = 0;
+  int _idx = _savedTab;
 
   static const _pages = [RecentScreen(), SendScreen(), SettingsScreen()];
 
@@ -72,7 +79,7 @@ class _HomeShellState extends State<HomeShell> {
             child: _PillNav(
               index: _idx,
               connState: SyncService.instance.state,
-              onTap: (i) => setState(() => _idx = i),
+              onTap: (i) => setState(() { _idx = i; _savedTab = i; }),
             ),
           ),
         ],

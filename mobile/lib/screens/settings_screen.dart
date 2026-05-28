@@ -132,9 +132,10 @@ class _ThemePicker extends StatelessWidget {
   const _ThemePicker();
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<ClippyMode>(
-      valueListenable: ThemeController.instance.notifier,
-      builder: (ctx, mode, _) {
+    return ValueListenableBuilder<int>(
+      valueListenable: ThemeController.instance.rev,
+      builder: (ctx, rev, child) {
+        final mode = ThemeController.instance.mode;
         Widget seg(ClippyMode m, String label, IconData icon) {
           final active = m == mode;
           return Expanded(

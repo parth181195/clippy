@@ -2,30 +2,47 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../theme.dart';
 
-/// Holds the current theme mode, persists it, and applies it to ClippyTokens.
-/// The desktop can push a new theme over the sync channel.
+/// Holds the current theme mode + accent, persists them, and applies them to
+/// ClippyTokens. The desktop can push both over the sync channel.
+///
+/// [rev] bumps on every change (mode OR accent) so a ValueListenableBuilder
+/// keyed on it rebuilds the whole app even when only the accent changed.
 class ThemeController {
   static final ThemeController instance = ThemeController._();
   ThemeController._();
 
   final _storage = const FlutterSecureStorage();
-  final notifier = ValueNotifier<ClippyMode>(ClippyMode.dark);
+  final ValueNotifier<int> rev = ValueNotifier<int>(0);
+  ClippyMode mode = ClippyMode.dark;
 
   Future<void> load() async {
-    String? saved;
-    try { saved = await _storage.read(key: 'theme'); } catch (_) {}
-    final mode = clippyModeFromString(saved);
+    String? savedMode, savedAccent;
+    try {
+      savedMode = await _storage.read(key: 'theme');
+      savedAccent = await _storage.read(key: 'accent');
+    } catch (_) {}
+    mode = clippyModeFromString(savedMode);
     ClippyTokens.applyMode(mode);
-    notifier.value = mode;
+    ClippyTokens.applyAccent(savedAccent);
   }
 
-  /// Apply + persist a new mode (from settings UI or a desktop THEME push).
-  Future<void> set(ClippyMode mode) async {
-    if (mode == notifier.value) return;
-    ClippyTokens.applyMode(mode);
-    notifier.value = mode;
-    try { await _storage.write(key: 'theme', value: mode.name); } catch (_) {}
+  /// Local mode change (phone Settings picker).
+  Future<void> set(ClippyMode m) async {
+    mode = m;
+    ClippyTokens.applyMode(m);
+    rev.value++;
+    try { await _storage.write(key: 'theme', value: m.name); } catch (_) {}
   }
 
-  Future<void> setFromString(String? s) => set(clippyModeFromString(s));
+  /// Apply a theme pushed from the desktop (resolved mode + accent hex).
+  Future<void> applyFromDesktop(String? modeStr, String? accentHex) async {
+    mode = clippyModeFromString(modeStr);
+    ClippyTokens.applyMode(mode);
+    ClippyTokens.applyAccent(accentHex);
+    rev.value++;
+    try {
+      await _storage.write(key: 'theme', value: mode.name);
+      if (accentHex != null) await _storage.write(key: 'accent', value: accentHex);
+    } catch (_) {}
+  }
 }

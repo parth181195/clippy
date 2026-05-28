@@ -53,7 +53,7 @@ export function registerIpc(opts: {
   onPairingState: () => { state: string; deviceName: string | null };
   onSendClipToPeer: (clipId: number) => Promise<string | null>;
   onPickColor: () => Promise<string | null>;
-  onSyncTheme: (mode: string) => void;
+  onSyncTheme: (mode: string, accent: string) => void;
 }): void {
   const { db, onPaste, onPasteMany, onHidePanel, onShowPanel, onTogglePanel, onSettingsSaved,
     onPairingBegin, onPairingCancel, onUnpair, onPairingState, onSendClipToPeer, onPickColor, onSyncTheme } = opts;
@@ -230,7 +230,7 @@ export function registerIpc(opts: {
 
   ipcMain.handle(IPC.pickColor, () => onPickColor());
   ipcMain.handle(IPC.copyText, (_e, text: string) => { clipboard.writeText(text); });
-  ipcMain.handle(IPC.syncTheme, (_e, mode: string) => onSyncTheme(mode));
+  ipcMain.handle(IPC.syncTheme, (_e, mode: string, accent: string) => onSyncTheme(mode, accent));
 
   ipcMain.handle(IPC.actionRun, async (_e, clipId: number, actionId: number): Promise<{ ok: boolean; error?: string }> => {
     const action = raw.prepare('SELECT * FROM clip_actions WHERE id = ?').get(actionId) as any;

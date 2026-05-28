@@ -520,6 +520,8 @@ const settingsCss = `
   .settings .swatch {
     width: 22px; height: 22px; border-radius: 50%;
     border: 2px solid transparent; cursor: pointer;
+    /* faint ring so near-white swatches (bone) stay visible on a light surface */
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cm-text) 18%, transparent);
   }
   .settings .swatch.active { border-color: var(--cm-text); }
 `;

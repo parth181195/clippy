@@ -229,10 +229,10 @@ export class SyncService {
     return this.filePlugin.sendClip(clipId);
   }
 
-  /** Push the current theme mode ('dark' | 'light' | 'oled') to the phone. */
-  async sendTheme(mode: string): Promise<void> {
+  /** Push the current theme mode + accent hex to the phone. */
+  async sendTheme(mode: string, accent: string): Promise<void> {
     if (!this.transport) return;
-    try { await this.transport.send(makeEnvelope('core', 'THEME', { mode })); } catch {}
+    try { await this.transport.send(makeEnvelope('core', 'THEME', { mode, accent })); } catch {}
   }
 
   private loadPairedDevice(): { deviceId: string; name: string; psk: Uint8Array } | null {
