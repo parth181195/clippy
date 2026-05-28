@@ -1,4 +1,5 @@
 import { useRef, type ReactNode } from 'react';
+import { CornerDownLeft } from 'lucide-react';
 import { ClipCard } from '../components/ClipCard';
 import type { ClipDto } from '../../../electron/ipc-types';
 
