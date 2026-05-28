@@ -16,10 +16,32 @@ Future<void> main() async {
     if (!status.isGranted) await Permission.notification.request();
   } catch (_) {}
   await ClippyBackground.init();
+  final bg = FlutterBackgroundService();
+  // We're the foreground UI → own the single-peer WS; tell the bg isolate to
+  // back off so they don't fight over the desktop's one connection slot.
+  bg.invoke('app_foreground');
   await SyncService.instance.start();
   // Background isolate tells us when it received a clip → refresh foreground UI.
-  FlutterBackgroundService().on('clip_received').listen((_) {
-    SyncService.instance.notifyExternalChange();
-  });
+  bg.on('clip_received').listen((_) => SyncService.instance.notifyExternalChange());
+
+  // Hand the connection back and forth as the app enters/leaves foreground.
+  WidgetsBinding.instance.addObserver(_LifecycleHandoff(bg));
+
   runApp(const ClippyApp());
+}
+
+class _LifecycleHandoff extends WidgetsBindingObserver {
+  final FlutterBackgroundService bg;
+  _LifecycleHandoff(this.bg);
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      bg.invoke('app_foreground');        // bg backs off
+      SyncService.instance.start();        // fg (re)connects
+    } else if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
+      SyncService.instance.suspend();      // fg releases the WS
+      bg.invoke('app_background');          // bg takes over
+    }
+  }
 }

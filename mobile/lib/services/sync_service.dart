@@ -124,6 +124,20 @@ class SyncService extends ChangeNotifier {
     await _connect();
   }
 
+  /// Release the WS without unpairing — used when the app backgrounds so the
+  /// foreground-service isolate can take over the single-peer connection.
+  Future<void> suspend() async {
+    _retryTimer?.cancel();
+    await _connSub?.cancel();
+    _connSub = null;
+    await _channel?.sink.close(ws_status.normalClosure);
+    _channel = null;
+    if (state != ConnState.unpaired) {
+      state = ConnState.disconnected;
+      notifyListeners();
+    }
+  }
+
   Future<void> setPaired(PairingPayload p, String phoneName) async {
     await _storage.write(key: 'pairing', value: jsonEncode(p.toJson()));
     await _storage.write(key: 'phone_name', value: phoneName);

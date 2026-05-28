@@ -64,7 +64,17 @@ Future<void> _onStart(ServiceInstance service) async {
   WidgetsFlutterBinding.ensureInitialized();
   DartPluginRegistrant.ensureInitialized();
   final loop = _BgSyncLoop(service);
-  await loop.start();
+  loop.setNotif('Clippy sync', 'Ready');
+
+  // The foreground app owns the single-peer WS while alive. On a normal
+  // launch main.dart sends 'app_foreground' immediately, which cancels this
+  // grace timer so the bg stays idle. But if we started from boot with no UI,
+  // nothing sends that — so after a grace period we connect ourselves.
+  Timer? bootConnect = Timer(const Duration(seconds: 4), () => loop.start());
+  void cancelBoot() { bootConnect?.cancel(); bootConnect = null; }
+
+  service.on('app_foreground').listen((_) { cancelBoot(); loop.stop(); });
+  service.on('app_background').listen((_) { cancelBoot(); loop.start(); });
 
   // Allow the foreground app to ask us to stop / reconnect.
   service.on('stop').listen((_) async {
@@ -88,7 +98,7 @@ class _BgSyncLoop {
   Future<void> start() async {
     final raw = await _storage.read(key: 'pairing');
     if (raw == null) {
-      _setNotif('Clippy sync', 'No device paired');
+      setNotif('Clippy sync', 'No device paired');
       return;
     }
     _paired = PairingPayload.fromJson(jsonDecode(raw) as Map<String, dynamic>);
@@ -112,7 +122,7 @@ class _BgSyncLoop {
     if (_paired == null || _psk == null) return;
     if (_connecting || _channel != null) return;
     _connecting = true;
-    _setNotif('Clippy sync', 'Connecting to ${_paired!.name}…');
+    setNotif('Clippy sync', 'Connecting to ${_paired!.name}…');
     IOWebSocketChannel? ch;
     try {
       ch = IOWebSocketChannel.connect(Uri.parse('ws://${_paired!.host}:${_paired!.port}'));
@@ -134,7 +144,7 @@ class _BgSyncLoop {
           'version': '0.1.0',
         },
       ));
-      _setNotif('Clippy sync', 'Paired with ${_paired!.name}');
+      setNotif('Clippy sync', 'Paired with ${_paired!.name}');
     } catch (e) {
       debugPrint('[clippy-bg] connect failed: $e');
       try { await ch?.sink.close(); } catch (_) {}
@@ -150,7 +160,7 @@ class _BgSyncLoop {
   void _scheduleRetry() {
     _retry?.cancel();
     _retry = Timer(const Duration(seconds: 15), _connect);
-    _setNotif('Clippy sync', 'Offline — retrying…');
+    setNotif('Clippy sync', 'Offline — retrying…');
   }
 
   void _onDisconnect(IOWebSocketChannel which) {
@@ -211,7 +221,7 @@ class _BgSyncLoop {
     service.invoke('clip_received');
   }
 
-  void _setNotif(String title, String body) {
+  void setNotif(String title, String body) {
     // AndroidServiceInstance is an extension on ServiceInstance — calling
     // setForegroundNotificationInfo dynamically avoids importing the android
     // package directly (which would fail with a 'main isolate only' check).

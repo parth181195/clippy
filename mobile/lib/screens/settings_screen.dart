@@ -1,6 +1,7 @@
 import 'package:disable_battery_optimization/disable_battery_optimization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
+import '../app.dart' show ScreenHeader;
 import '../services/sync_service.dart';
 import '../theme.dart';
 import 'pairing_screen.dart';
@@ -8,89 +9,190 @@ import 'pairing_screen.dart';
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
-  String _stateLabel(ConnState s) => switch (s) {
-        ConnState.unpaired => 'Not paired',
-        ConnState.connecting => 'Connecting…',
-        ConnState.connected => 'Connected',
-        ConnState.disconnected => 'Disconnected',
-      };
-
-  Color _stateColor(ConnState s) => switch (s) {
-        ConnState.connected => Colors.greenAccent,
-        ConnState.connecting => Colors.amberAccent,
-        ConnState.disconnected => Colors.redAccent,
-        ConnState.unpaired => ClippyTokens.textTerDark,
-      };
-
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: SyncService.instance,
       builder: (ctx, child) {
         final svc = SyncService.instance;
+        final paired = svc.state != ConnState.unpaired;
         return ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.only(bottom: 120),
           children: [
-            Card(
-              color: ClippyTokens.surfaceDark,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 8, height: 8,
-                          decoration: BoxDecoration(
-                            color: _stateColor(svc.state),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(_stateLabel(svc.state), style: TextStyle(color: ClippyTokens.textDark, fontWeight: FontWeight.w600)),
-                      ],
-                    ),
-                    if (svc.desktopName != null) ...[
-                      const SizedBox(height: 8),
-                      Text('Paired with: ${svc.desktopName}', style: TextStyle(color: ClippyTokens.textSecDark)),
-                    ],
-                  ],
-                ),
-              ),
+            const ScreenHeader(title: 'Settings'),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: paired ? _deviceCard(context, svc) : _pairCard(context),
             ),
-            const SizedBox(height: 16),
-            if (svc.state == ConnState.unpaired)
-              FilledButton.icon(
-                onPressed: () {
-                  Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PairingScreen()));
-                },
-                icon: const Icon(Icons.qr_code_scanner),
-                label: const Text('Pair with desktop'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: ClippyTokens.accent,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-              )
-            else
-              OutlinedButton.icon(
-                onPressed: () async {
-                  await svc.unpair();
-                },
-                icon: const Icon(Icons.link_off),
-                label: const Text('Unpair'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.redAccent,
-                  side: const BorderSide(color: Colors.redAccent),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-              ),
-            const SizedBox(height: 24),
+            const _SectionLabel('Background'),
             const _BackgroundCard(),
+            if (paired) ...[
+              const _SectionLabel('Device'),
+              _Group(children: [
+                _Row(
+                  label: 'Unpair device',
+                  trailing: Icon(Icons.link_off, size: 18, color: Colors.redAccent),
+                  onTap: () => svc.unpair(),
+                  last: true,
+                ),
+              ]),
+            ],
+            const _SectionLabel('About'),
+            _Group(children: const [
+              _Row(label: 'Clippy', trailing: Text('v0.1.0', style: TextStyle(color: ClippyTokens.textSecDark, fontSize: 13)), last: true),
+            ]),
           ],
         );
       },
+    );
+  }
+
+  Widget _deviceCard(BuildContext context, SyncService svc) {
+    final connected = svc.state == ConnState.connected;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft, end: Alignment.bottomRight,
+          colors: [ClippyTokens.accent.withValues(alpha: 0.16), ClippyTokens.surfaceDark],
+        ),
+        border: Border.all(color: ClippyTokens.accent.withValues(alpha: 0.30)),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 48, height: 48,
+                decoration: BoxDecoration(
+                  color: ClippyTokens.accent,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [BoxShadow(color: ClippyTokens.accent.withValues(alpha: 0.4), blurRadius: 16, offset: const Offset(0, 6))],
+                ),
+                child: const Icon(Icons.monitor, color: Colors.white, size: 22),
+              ),
+              Positioned(
+                bottom: -2, right: -2,
+                child: Container(
+                  width: 13, height: 13,
+                  decoration: BoxDecoration(
+                    color: connected ? const Color(0xFF7CE8B5) : ClippyTokens.textTerDark,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: ClippyTokens.bgSolidDark, width: 3),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(svc.desktopName ?? 'desktop',
+                    style: TextStyle(color: ClippyTokens.textDark, fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: -0.2)),
+                const SizedBox(height: 2),
+                Text(
+                  switch (svc.state) {
+                    ConnState.connected => 'Connected · LAN',
+                    ConnState.connecting => 'Connecting…',
+                    ConnState.disconnected => 'Offline',
+                    ConnState.unpaired => 'Not paired',
+                  },
+                  style: TextStyle(color: ClippyTokens.textSecDark, fontSize: 11.5, fontFamily: 'monospace'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pairCard(BuildContext context) {
+    return FilledButton.icon(
+      onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PairingScreen())),
+      icon: const Icon(Icons.qr_code_scanner),
+      label: const Text('Pair with desktop'),
+      style: FilledButton.styleFrom(
+        backgroundColor: ClippyTokens.accent,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  final String text;
+  const _SectionLabel(this.text);
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 18, 22, 8),
+      child: Text(text.toUpperCase(),
+          style: TextStyle(
+            color: ClippyTokens.textTerDark, fontSize: 10.5, fontWeight: FontWeight.w700,
+            letterSpacing: 1.2, fontFamily: 'monospace',
+          )),
+    );
+  }
+}
+
+class _Group extends StatelessWidget {
+  final List<Widget> children;
+  const _Group({required this.children});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: ClippyTokens.surfaceDark,
+        border: Border.all(color: ClippyTokens.borderSubtleDark),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(children: children),
+    );
+  }
+}
+
+class _Row extends StatelessWidget {
+  final String label;
+  final String? hint;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+  final bool last;
+  const _Row({required this.label, this.hint, this.trailing, this.onTap, this.last = false});
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          border: last ? null : Border(bottom: BorderSide(color: ClippyTokens.borderSubtleDark)),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: TextStyle(color: ClippyTokens.textDark, fontSize: 14, fontWeight: FontWeight.w500)),
+                  if (hint != null) ...[
+                    const SizedBox(height: 2),
+                    Text(hint!, style: TextStyle(color: ClippyTokens.textSecDark, fontSize: 11.5, height: 1.4)),
+                  ],
+                ],
+              ),
+            ),
+            if (trailing != null) trailing!,
+          ],
+        ),
+      ),
     );
   }
 }
@@ -123,49 +225,29 @@ class _BackgroundCardState extends State<_BackgroundCard> {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      color: ClippyTokens.surfaceDark,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Background sync',
-                style: TextStyle(color: ClippyTokens.textDark, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 6),
-            Text(
-              _serviceRunning
-                  ? 'Foreground service active — sync survives when Clippy is closed.'
-                  : 'Service not running.',
-              style: TextStyle(color: ClippyTokens.textSecDark, fontSize: 12),
-            ),
-            const SizedBox(height: 12),
-            if (_batteryOptOff == false)
-              OutlinedButton.icon(
-                onPressed: () async {
-                  await DisableBatteryOptimization.showDisableBatteryOptimizationSettings();
-                  _refresh();
-                },
-                icon: const Icon(Icons.battery_charging_full),
-                label: const Text('Disable battery optimization'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: ClippyTokens.accent,
-                  side: BorderSide(color: ClippyTokens.accent),
-                ),
-              )
-            else if (_batteryOptOff == true)
-              Row(
-                children: [
-                  Icon(Icons.check_circle_outline, color: Colors.greenAccent, size: 16),
-                  const SizedBox(width: 6),
-                  Text('Battery optimization disabled',
-                      style: TextStyle(color: ClippyTokens.textSecDark, fontSize: 12)),
-                ],
-              ),
-          ],
+    return _Group(children: [
+      _Row(
+        label: 'Foreground service',
+        hint: _serviceRunning
+            ? 'Active — sync survives when Clippy is closed.'
+            : 'Not running.',
+        trailing: Icon(
+          _serviceRunning ? Icons.check_circle_outline : Icons.circle_outlined,
+          size: 18, color: _serviceRunning ? const Color(0xFF7CE8B5) : ClippyTokens.textTerDark,
         ),
+        last: _batteryOptOff == true,
       ),
-    );
+      if (_batteryOptOff == false)
+        _Row(
+          label: 'Disable battery optimization',
+          hint: 'Recommended so Android keeps the connection alive.',
+          trailing: Icon(Icons.battery_charging_full, size: 18, color: ClippyTokens.accent),
+          onTap: () async {
+            await DisableBatteryOptimization.showDisableBatteryOptimizationSettings();
+            _refresh();
+          },
+          last: true,
+        ),
+    ]);
   }
 }
