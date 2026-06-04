@@ -6,6 +6,7 @@ import '../services/error_reporting.dart';
 import '../services/sync_service.dart';
 import '../services/theme_controller.dart';
 import '../theme.dart';
+import 'diagnostics_screen.dart';
 import 'pairing_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -31,6 +32,17 @@ class SettingsScreen extends StatelessWidget {
             const _ThemePicker(),
             const _SectionLabel('Diagnostics'),
             const _CrashReportingCard(),
+            _Group(children: [
+              _Row(
+                label: 'Connections & device info',
+                hint: 'Per-desktop state, host, transfers. Copyable as text.',
+                trailing: Icon(Icons.chevron_right, color: ClippyTokens.textTerDark),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const DiagnosticsScreen()),
+                ),
+                last: true,
+              ),
+            ]),
             const _SectionLabel('About'),
             _Group(children: [
               _Row(label: 'Clippy', trailing: Text('v0.1.0', style: TextStyle(color: ClippyTokens.textSecDark, fontSize: 13)), last: true),
