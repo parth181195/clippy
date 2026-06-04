@@ -90,6 +90,16 @@ CREATE TABLE IF NOT EXISTS paired_devices (
     paired_at INTEGER NOT NULL
 );
 
+-- This desktop's own ed25519 identity. Single row, keyed 'self'.
+-- Generated once on first launch by device-identity.ts; never exported.
+CREATE TABLE IF NOT EXISTS device_identity (
+    k           TEXT PRIMARY KEY,
+    device_id   TEXT NOT NULL,
+    public_key  BLOB NOT NULL,
+    private_key BLOB NOT NULL,
+    created_at  INTEGER NOT NULL
+);
+
 INSERT OR IGNORE INTO excluded_apps(app_id) VALUES
     ('keepassxc'), ('bitwarden'), ('1password'), ('gnome-keyring');
 

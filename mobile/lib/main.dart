@@ -5,6 +5,7 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 import 'app.dart';
 import 'services/background_service.dart';
 import 'services/db_service.dart';
+import 'services/device_identity.dart';
 import 'services/error_reporting.dart';
 import 'services/share_receiver.dart';
 import 'services/sync_service.dart';
@@ -18,6 +19,9 @@ const _kSentryDsn =
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await ErrorReporting.instance.load();
+  // Generate/load this phone's stable ed25519 identity so signed HELLOs work
+  // the first time SyncPool tries to reconnect.
+  await DeviceIdentity.instance.load();
   await SentryFlutter.init(
     (options) {
       options.dsn = const String.fromEnvironment('SENTRY_DSN', defaultValue: _kSentryDsn);
