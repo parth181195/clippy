@@ -266,6 +266,26 @@ export class SyncService {
         }
       } else {
         // Reconnect path — phone we already know. Verify revocation + signature.
+        // Legacy heal: if the transport pre-keyed this session via a paired_devices
+        // PSK match but the HELLO carries a different device_id (a phone upgraded
+        // from v0.1 which had a hardcoded 'clippy-phone' id), rewrite the row
+        // to the canonical DeviceIdentity id BEFORE the row lookup.
+        const preKeyed = session.deviceId;
+        if (preKeyed && preKeyed !== deviceId) {
+          try {
+            const existing = this.deps.db.raw().prepare(
+              'SELECT 1 FROM paired_devices WHERE device_id = ?'
+            ).get(deviceId) as { 1: number } | undefined;
+            if (!existing) {
+              this.deps.db.raw().prepare(
+                'UPDATE paired_devices SET device_id = ? WHERE device_id = ?'
+              ).run(deviceId, preKeyed);
+              log(`healed paired_devices.device_id ${preKeyed} → ${deviceId}`);
+            }
+          } catch (e) {
+            log(`heal paired_devices failed: ${e}`);
+          }
+        }
         const row = this.deps.db.raw().prepare(
           'SELECT pubkey, is_revoked FROM paired_devices WHERE device_id = ?'
         ).get(deviceId) as { pubkey: Buffer; is_revoked: number } | undefined;
@@ -292,6 +312,22 @@ export class SyncService {
           } catch (e) {
             log(`HELLO signature verify error from ${deviceId}: ${e}`);
             return;
+          }
+        }
+        // Once we've accepted this HELLO, store the phone's pubkey if we don't
+        // have one yet (legacy v0.1 rows have an empty BLOB). Future HELLOs will
+        // then go through signature verification.
+        if (pubkeyB64 && (!row || !row.pubkey || row.pubkey.length !== 32)) {
+          try {
+            const pubBytes = b64ToBytes(pubkeyB64);
+            if (pubBytes.length === 32) {
+              this.deps.db.raw()
+                .prepare('UPDATE paired_devices SET pubkey = ? WHERE device_id = ?')
+                .run(Buffer.from(pubBytes), deviceId);
+              log(`stored pubkey for ${deviceId} (was empty)`);
+            }
+          } catch (e) {
+            log(`pubkey upgrade failed for ${deviceId}: ${e}`);
           }
         }
         this.deps.db.raw()

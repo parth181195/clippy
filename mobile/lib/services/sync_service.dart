@@ -208,7 +208,23 @@ class SyncConnection {
 
   Future<void> _send(Envelope env) async {
     if (_channel == null) return;
-    final pt = utf8.encode(jsonEncode(env.toJson()));
+    // Stamp the sender on every outbound envelope so the receiver can attribute
+    // clips to this phone (CLIP_NEW writes source_device_id on the desktop).
+    // HELLO already sets `from` itself; leave it untouched if present.
+    final stamped = env.from != null
+        ? env
+        : Envelope(
+            type: env.type,
+            id: env.id,
+            ts: env.ts,
+            plugin: env.plugin,
+            payload: env.payload,
+            from: {
+              'device_id': DeviceIdentity.instance.deviceId,
+              'name': phoneName,
+            },
+          );
+    final pt = utf8.encode(jsonEncode(stamped.toJson()));
     final b64 = await CryptoService.encrypt(_psk, Uint8List.fromList(pt));
     _channel!.sink.add(b64);
   }
@@ -472,8 +488,12 @@ class SyncService extends ChangeNotifier {
       notifyListeners();
       return;
     }
+    // Idempotent: only add connections for pairings we don't already have.
+    // start() is called from main.dart AND on lifecycle.resumed; without the
+    // dedup we'd end up with parallel sockets to the same desktop.
     for (final p in pairings) {
-      _connections.add(_buildConnection(p));
+      final idx = _connections.indexWhere((c) => c.paired.deviceId == p.deviceId);
+      if (idx < 0) _connections.add(_buildConnection(p));
     }
     notifyListeners();
     for (final c in _connections) {

@@ -9,8 +9,10 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/status.dart' as ws_status;
+import 'package:sodium_libs/sodium_libs.dart' show SodiumInit;
 import 'crypto_service.dart';
 import 'db_service.dart';
+import 'device_identity.dart';
 import 'envelope.dart';
 import 'sync_service.dart' show PairingPayload;
 
@@ -134,16 +136,32 @@ class _BgSyncLoop {
         onError: (_) => _onDisconnect(ch!),
         cancelOnError: true,
       );
+      // Share identity with the fg isolate: same device_id + signing key so
+      // the desktop sees one device, not two. The bg isolate has its own
+      // memory, so DeviceIdentity.load() reads the secure-storage values that
+      // the fg isolate wrote.
+      await DeviceIdentity.instance.load();
+      final id = DeviceIdentity.instance;
+      final sodium = await SodiumInit.init();
+      final nonce = sodium.randombytes.buf(16);
+      final nonceB64 = base64Encode(nonce);
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      final sigMaterial = utf8.encode('${id.deviceId}|$ts|$nonceB64');
+      final sig = await id.sign(Uint8List.fromList(sigMaterial));
       await _send(Envelope(
         type: 'HELLO',
         id: newUuidV4(),
-        ts: DateTime.now().millisecondsSinceEpoch,
+        ts: ts,
         plugin: 'core',
         payload: {
-          'device_id': 'clippy-phone-bg',
-          'name': '${await _phoneName()} (bg)',
+          'device_id': id.deviceId,
+          'name': await _phoneName(),
           'version': '0.1.0',
+          'pubkey': base64Encode(id.publicKey),
+          'nonce': nonceB64,
+          'signature': base64Encode(sig),
         },
+        from: {'device_id': id.deviceId, 'name': await _phoneName()},
       ));
       setNotif('Clippy sync', 'Paired with ${_paired!.name}');
     } catch (e) {

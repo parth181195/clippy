@@ -98,13 +98,17 @@ export class ClipboardPlugin {
       } catch {
         return;
       }
+      const fromDeviceId = env.from?.device_id ?? null;
+      const fromDeviceName = env.from?.name ?? null;
       const { id, wasNew } = this.deps.db.insertClip(
         kind,
         Buffer.from(bytes),
         mime,
         preview,
-        'from phone',
-        Date.now()
+        fromDeviceName ? `from ${fromDeviceName}` : 'from phone',
+        Date.now(),
+        fromDeviceId,
+        fromDeviceName,
       );
       if (wasNew) this.deps.onRemoteClipInserted?.(id);
     }

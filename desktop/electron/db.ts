@@ -194,7 +194,9 @@ export class Db {
     mime: string,
     preview: string,
     sourceApp: string | null,
-    nowMillis: number
+    nowMillis: number,
+    sourceDeviceId: string | null = null,
+    sourceDeviceName: string | null = null
   ): { id: number; wasNew: boolean } {
     const hash = sha256Hex(content);
     const existing = this.db
@@ -203,10 +205,10 @@ export class Db {
     if (existing) return { id: existing.id, wasNew: false };
     const info = this.db
       .prepare(
-        `INSERT INTO clips(content_type, content, mime, content_hash, preview, source_app, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO clips(content_type, content, mime, content_hash, preview, source_app, created_at, source_device_id, source_device_name)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
-      .run(contentType, content, mime, hash, preview, sourceApp, nowMillis);
+      .run(contentType, content, mime, hash, preview, sourceApp, nowMillis, sourceDeviceId, sourceDeviceName);
     return { id: Number(info.lastInsertRowid), wasNew: true };
   }
 
