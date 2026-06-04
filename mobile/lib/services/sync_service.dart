@@ -57,154 +57,76 @@ class PairingPayload {
       };
 }
 
-class SyncService extends ChangeNotifier {
-  static final SyncService instance = SyncService._();
-  SyncService._();
+/// One desktop, one WebSocket, one PSK, one retry/mDNS loop. SyncService owns
+/// a list of these. Existing single-peer code paths in the UI keep working
+/// because SyncService exposes aggregate state + delegates to connections.
+class SyncConnection {
+  PairingPayload paired;
+  String phoneName;
+  final void Function() onStateChange;
+  final void Function(TransferProgress) onTransferProgress;
+  final void Function() onExternalChange;
+  final Future<void> Function(PairingPayload updated)? onPairingUpdated;
 
-  final _storage = const FlutterSecureStorage(
-    aOptions: AndroidOptions(
-      resetOnError: true,
-      encryptedSharedPreferences: true,
-    ),
-  );
   IOWebSocketChannel? _channel;
-  Uint8List? _psk;
-  PairingPayload? _paired;
-  String _phoneName = 'phone';
-  bool _connecting = false;
+  final Uint8List _psk;
   Timer? _retryTimer;
   int _retryAttempt = 0;
   StreamSubscription? _connSub;
+  bool _connecting = false;
+  ConnState state = ConnState.disconnected;
+
   final Map<String, TransferProgress> transfers = {};
   late final FileTransferService _files = FileTransferService(
     send: _send,
-    onInboundComplete: notifyListeners,
+    onInboundComplete: onExternalChange,
     onProgress: _onProgress,
   );
 
+  SyncConnection({
+    required this.paired,
+    required this.phoneName,
+    required this.onStateChange,
+    required this.onTransferProgress,
+    required this.onExternalChange,
+    this.onPairingUpdated,
+  }) : _psk = base64Decode(paired.psk);
+
+  String get deviceId => paired.deviceId;
+  String get desktopName => paired.name;
+
   void _onProgress(TransferProgress p) {
     transfers[p.transferId] = p;
-    notifyListeners();
+    onTransferProgress(p);
     if (p.done) {
       Timer(const Duration(milliseconds: 1500), () {
         transfers.remove(p.transferId);
-        notifyListeners();
+        onStateChange();
       });
     }
   }
 
-  ConnState state = ConnState.unpaired;
-  String? get desktopName => _paired?.name;
-
-  /// Reads the paired-desktops list from secure storage, with a one-time
-  /// migration from the legacy single-pairing 'pairing' key into the new
-  /// 'pairings' (JSON array) key. Returns `[]` when nothing is paired.
-  Future<List<PairingPayload>> _readPairings() async {
-    try {
-      final raw = await _storage.read(key: 'pairings');
-      if (raw != null) {
-        final list = jsonDecode(raw) as List<dynamic>;
-        return list
-            .map((e) => PairingPayload.fromJson(e as Map<String, dynamic>))
-            .toList();
-      }
-    } catch (_) {}
-    try {
-      final legacy = await _storage.read(key: 'pairing');
-      if (legacy == null) return [];
-      final p = PairingPayload.fromJson(jsonDecode(legacy) as Map<String, dynamic>);
-      // Persist forward; keep 'pairing' too so a downgrade to v0.1 still works.
-      await _storage.write(key: 'pairings', value: jsonEncode([p.toJson()]));
-      return [p];
-    } catch (_) {
-      return [];
-    }
-  }
-
-  Future<void> start() async {
-    List<PairingPayload> pairings;
-    try {
-      pairings = await _readPairings();
-    } catch (e) {
-      debugPrint('[clippy] secure-storage read failed (likely stale keystore): $e');
-      try { await _storage.deleteAll(); } catch (_) {}
-      pairings = [];
-    }
-    if (pairings.isEmpty) {
-      state = ConnState.unpaired;
-      notifyListeners();
-      return;
-    }
-    // Single-peer for now — SyncPool refactor (B2/B3) will iterate the list.
-    _paired = pairings.first;
-    _psk = base64Decode(_paired!.psk);
-    _phoneName = (await _storage.read(key: 'phone_name')) ?? 'phone';
-    // Reconnect immediately when Wi-Fi comes back (bypasses exp-backoff wait).
-    _connSub?.cancel();
-    _connSub = Connectivity().onConnectivityChanged.listen((results) {
-      final hasNet = results.any((r) => r != ConnectivityResult.none);
-      if (hasNet && state != ConnState.connected && !_connecting) {
-        debugPrint('[clippy] network back → reconnect');
-        _retryAttempt = 0;
-        _retryTimer?.cancel();
-        _connect();
-      }
-    });
-    await _connect();
-  }
-
-  /// Release the WS without unpairing — used when the app backgrounds so the
-  /// foreground-service isolate can take over the single-peer connection.
-  Future<void> suspend() async {
-    _retryTimer?.cancel();
-    await _connSub?.cancel();
-    _connSub = null;
-    await _channel?.sink.close(ws_status.normalClosure);
-    _channel = null;
-    if (state != ConnState.unpaired) {
-      state = ConnState.disconnected;
-      notifyListeners();
-    }
-  }
-
-  Future<void> setPaired(PairingPayload p, String phoneName) async {
-    // Read the existing list, replace or append this device, persist forward.
-    final existing = await _readPairings();
-    final filtered = existing.where((e) => e.deviceId != p.deviceId).toList()..add(p);
-    await _storage.write(key: 'pairings', value: jsonEncode(filtered.map((e) => e.toJson()).toList()));
-    // Mirror to the legacy 'pairing' key so a downgrade to v0.1 still works.
-    await _storage.write(key: 'pairing', value: jsonEncode(p.toJson()));
-    await _storage.write(key: 'phone_name', value: phoneName);
-    _paired = p;
-    _psk = base64Decode(p.psk);
-    _phoneName = phoneName;
-    await _connect();
-  }
-
-  Future<void> unpair() async {
-    await _channel?.sink.close(ws_status.normalClosure);
-    _channel = null;
-    await _storage.delete(key: 'pairings');
-    await _storage.delete(key: 'pairing');
-    await _storage.delete(key: 'phone_name');
-    _paired = null;
-    _psk = null;
-    state = ConnState.unpaired;
-    notifyListeners();
-  }
-
-  Future<void> _connect() async {
-    if (_paired == null || _psk == null) return;
+  Future<void> connect() async {
     if (_connecting || state == ConnState.connected) return;
     _connecting = true;
     state = ConnState.connecting;
-    notifyListeners();
+    onStateChange();
+    // Reconnect immediately on network changes (bypasses exp-backoff wait).
+    _connSub ??= Connectivity().onConnectivityChanged.listen((results) {
+      final hasNet = results.any((r) => r != ConnectivityResult.none);
+      if (hasNet && state != ConnState.connected && !_connecting) {
+        debugPrint('[clippy] (${paired.name}) network back → reconnect');
+        _retryAttempt = 0;
+        _retryTimer?.cancel();
+        connect();
+      }
+    });
     IOWebSocketChannel? ch;
     try {
-      ch = IOWebSocketChannel.connect(Uri.parse('ws://${_paired!.host}:${_paired!.port}'));
+      ch = IOWebSocketChannel.connect(Uri.parse('ws://${paired.host}:${paired.port}'));
       _channel = ch;
-      // Swallow the sink's done-future error (connection-refused surfaces here
-      // when the desktop is down) so it doesn't become an unhandled exception.
+      // Swallow the sink's done-future error so connection-refused doesn't
+      // become an unhandled exception.
       ch.sink.done.catchError((_) {});
       ch.stream.listen(
         _onMessage,
@@ -215,17 +137,14 @@ class SyncService extends ChangeNotifier {
       await _send(await _buildHello());
       state = ConnState.connected;
       _retryAttempt = 0;
-      debugPrint('[clippy] connected to ${_paired!.host}:${_paired!.port}');
-      notifyListeners();
+      debugPrint('[clippy] connected to ${paired.host}:${paired.port}');
+      onStateChange();
     } catch (e) {
-      debugPrint('[clippy] connect failed: $e');
+      debugPrint('[clippy] (${paired.name}) connect failed: $e');
       try { await ch?.sink.close(); } catch (_) {}
       if (_channel == ch) _channel = null;
       state = ConnState.disconnected;
-      notifyListeners();
-      // mDNS rescue: if the desktop's IP changed (e.g. moved Wi-Fi), the
-      // saved host is wrong. Look it up by service name and persist the
-      // updated host before the next retry.
+      onStateChange();
       _tryMdnsRescue();
       _scheduleRetry();
     } finally {
@@ -233,54 +152,62 @@ class SyncService extends ChangeNotifier {
     }
   }
 
+  /// Release the WS without forgetting the pairing — used when the app
+  /// backgrounds so the foreground-service isolate can take over.
+  Future<void> suspend() async {
+    _retryTimer?.cancel();
+    await _connSub?.cancel();
+    _connSub = null;
+    await _channel?.sink.close(ws_status.normalClosure);
+    _channel = null;
+    state = ConnState.disconnected;
+    onStateChange();
+  }
+
   Future<void> _tryMdnsRescue() async {
-    if (_paired == null || _retryAttempt < 2) return; // only after a couple of fails
+    if (_retryAttempt < 2) return; // only after a couple of fails
     final found = await MdnsDiscovery.findDesktop();
     if (found == null) return;
-    if (found.host == _paired!.host && found.port == _paired!.port) return;
-    debugPrint('[clippy] mDNS rescue: ${_paired!.host} → ${found.host}');
-    final updated = PairingPayload(
-      v: _paired!.v,
-      deviceId: _paired!.deviceId,
-      name: _paired!.name,
+    if (found.host == paired.host && found.port == paired.port) return;
+    debugPrint('[clippy] (${paired.name}) mDNS rescue: ${paired.host} → ${found.host}');
+    paired = PairingPayload(
+      v: paired.v,
+      deviceId: paired.deviceId,
+      name: paired.name,
       host: found.host,
       port: found.port,
-      psk: _paired!.psk,
-      pubkey: _paired!.pubkey,
+      psk: paired.psk,
+      pubkey: paired.pubkey,
     );
-    _paired = updated;
-    await _storage.write(key: 'pairing', value: jsonEncode(updated.toJson()));
+    await onPairingUpdated?.call(paired);
   }
 
   void _scheduleRetry() {
     _retryTimer?.cancel();
-    // Exponential backoff: 2s, 4s, 8s, 16s, 32s, then cap at 60s.
     final attempt = _retryAttempt++;
     final seconds = (attempt >= 5) ? 60 : (1 << (attempt + 1));
     _retryTimer = Timer(Duration(seconds: seconds), () {
-      if (state != ConnState.connected && !_connecting) _connect();
+      if (state != ConnState.connected && !_connecting) connect();
     });
   }
 
   void _onDisconnect(IOWebSocketChannel which) {
     // Ignore stale events from a channel we've already replaced.
     if (_channel != which) return;
-    debugPrint('[clippy] disconnected');
+    debugPrint('[clippy] (${paired.name}) disconnected');
     _channel = null;
     state = ConnState.disconnected;
-    notifyListeners();
+    onStateChange();
     _scheduleRetry();
   }
 
   Future<void> _send(Envelope env) async {
-    if (_channel == null || _psk == null) return;
+    if (_channel == null) return;
     final pt = utf8.encode(jsonEncode(env.toJson()));
-    final b64 = await CryptoService.encrypt(_psk!, Uint8List.fromList(pt));
+    final b64 = await CryptoService.encrypt(_psk, Uint8List.fromList(pt));
     _channel!.sink.add(b64);
   }
 
-  /// Builds a HELLO with this phone's stable identity + a fresh signature so
-  /// the desktop can verify we really are the device it paired with (PRD P4).
   Future<Envelope> _buildHello() async {
     final id = DeviceIdentity.instance;
     final sodium = await SodiumInit.init();
@@ -296,20 +223,18 @@ class SyncService extends ChangeNotifier {
       plugin: 'core',
       payload: {
         'device_id': id.deviceId,
-        'name': _phoneName,
+        'name': phoneName,
         'version': '0.1.0',
         'pubkey': base64Encode(id.publicKey),
         'nonce': nonceB64,
         'signature': base64Encode(sig),
       },
-      from: {'device_id': id.deviceId, 'name': _phoneName},
+      from: {'device_id': id.deviceId, 'name': phoneName},
     );
   }
 
   Future<void> sendText(String text) async {
-    if (_psk == null) return;
     final bytes = utf8.encode(text);
-    // Quick local hash for envelope hash field (not cryptographic — just dedup tag)
     final hash = bytes.fold<int>(0, (a, b) => (a * 31 + b) & 0x7fffffff).toRadixString(16);
     await _send(Envelope(
       type: 'CLIP_NEW',
@@ -326,14 +251,33 @@ class SyncService extends ChangeNotifier {
     ));
   }
 
+  Future<void> requestSync() async {
+    if (state != ConnState.connected) return;
+    await _send(Envelope(
+      type: 'SYNC_REQUEST',
+      id: newUuidV4(),
+      ts: DateTime.now().millisecondsSinceEpoch,
+      plugin: 'core',
+      payload: {},
+    ));
+  }
+
+  Future<String?> sendFile({
+    required Uint8List bytes,
+    required String mime,
+    required String kind,
+    String? name,
+  }) async {
+    if (state != ConnState.connected) return null;
+    return _files.sendBytes(content: bytes, mime: mime, kind: kind, name: name);
+  }
+
   Future<void> _onMessage(dynamic raw) async {
-    debugPrint('[clippy] frame in: ${raw.runtimeType} ${raw is String ? raw.length : "?"} bytes (psk=${_psk != null})');
-    if (raw is! String || _psk == null) return;
-    final pt = await CryptoService.decrypt(_psk!, raw);
-    if (pt == null) { debugPrint('[clippy] decrypt FAILED'); return; }
+    if (raw is! String) return;
+    final pt = await CryptoService.decrypt(_psk, raw);
+    if (pt == null) { debugPrint('[clippy] (${paired.name}) decrypt FAILED'); return; }
     try {
       final env = Envelope.fromJson(jsonDecode(utf8.decode(pt)) as Map<String, dynamic>);
-      debugPrint('[clippy] env in: ${env.plugin}/${env.type}');
       if (env.plugin == 'clipboard' && env.type == 'CLIP_NEW') {
         await _onClipNew(env);
       } else if (env.plugin == 'file_transfer') {
@@ -349,36 +293,9 @@ class SyncService extends ChangeNotifier {
     }
   }
 
-  /// Called by the background isolate when it has written a new clip.
-  /// Fires notifyListeners so the foreground UI re-loads from DB.
-  void notifyExternalChange() => notifyListeners();
-
-  /// Ask the desktop to resend its recent clip history (manual sync).
-  Future<void> requestSync() async {
-    if (state != ConnState.connected) return;
-    await _send(Envelope(
-      type: 'SYNC_REQUEST',
-      id: newUuidV4(),
-      ts: DateTime.now().millisecondsSinceEpoch,
-      plugin: 'core',
-      payload: {},
-    ));
-  }
-
-  /// Send raw bytes (image/file) to the paired desktop.
-  Future<String?> sendFile({
-    required Uint8List bytes,
-    required String mime,
-    required String kind, // 'image' | 'file'
-    String? name,
-  }) async {
-    if (state != ConnState.connected) return null;
-    return _files.sendBytes(content: bytes, mime: mime, kind: kind, name: name);
-  }
-
   Future<void> _onClipNew(Envelope env) async {
     final inline = env.payload['content_inline'] as String?;
-    if (inline == null) { debugPrint('[clippy] CLIP_NEW without content_inline; ignoring'); return; }
+    if (inline == null) return;
     final bytes = base64Decode(inline);
     final db = (await DbService.instance()).db;
     await db.insert(
@@ -389,12 +306,226 @@ class SyncService extends ChangeNotifier {
         'content': bytes,
         'content_hash': env.payload['hash'] ?? '${env.ts}',
         'preview': env.payload['preview'] ?? '',
-        'source_app': 'from desktop',
+        'source_app': 'from ${paired.name}',
+        // Network provenance tags (schema v2) — light label for the UI.
+        'source_device_id': paired.deviceId,
+        'source_device_name': paired.name,
         'created_at': env.ts,
       },
       conflictAlgorithm: ConflictAlgorithm.ignore,
     );
-    debugPrint('[clippy] clip inserted: ${env.payload['preview']}');
+    onExternalChange();
+  }
+}
+
+class SyncService extends ChangeNotifier {
+  static final SyncService instance = SyncService._();
+  SyncService._();
+
+  final _storage = const FlutterSecureStorage(
+    aOptions: AndroidOptions(
+      resetOnError: true,
+      encryptedSharedPreferences: true,
+    ),
+  );
+
+  String _phoneName = 'phone';
+  final List<SyncConnection> _connections = [];
+
+  /// Aggregate state for the legacy single-peer UI: connected if ANY is, else
+  /// connecting if any is, else disconnected if any is, else unpaired.
+  ConnState get state {
+    if (_connections.isEmpty) return ConnState.unpaired;
+    if (_connections.any((c) => c.state == ConnState.connected)) return ConnState.connected;
+    if (_connections.any((c) => c.state == ConnState.connecting)) return ConnState.connecting;
+    return ConnState.disconnected;
+  }
+
+  /// First desktop's name. The multi-pair UI (D) replaces this with a list.
+  String? get desktopName =>
+      _connections.isNotEmpty ? _connections.first.paired.name : null;
+
+  /// Union of all connections' active transfers.
+  Map<String, TransferProgress> get transfers {
+    final m = <String, TransferProgress>{};
+    for (final c in _connections) {
+      m.addAll(c.transfers);
+    }
+    return m;
+  }
+
+  /// All currently-paired desktops (for the upcoming D-task UI).
+  List<PairingPayload> get pairings =>
+      _connections.map((c) => c.paired).toList(growable: false);
+
+  Future<List<PairingPayload>> _readPairings() async {
+    try {
+      final raw = await _storage.read(key: 'pairings');
+      if (raw != null) {
+        final list = jsonDecode(raw) as List<dynamic>;
+        return list
+            .map((e) => PairingPayload.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+    } catch (_) {}
+    try {
+      final legacy = await _storage.read(key: 'pairing');
+      if (legacy == null) return [];
+      final p = PairingPayload.fromJson(jsonDecode(legacy) as Map<String, dynamic>);
+      await _storage.write(key: 'pairings', value: jsonEncode([p.toJson()]));
+      return [p];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> _writePairings(List<PairingPayload> list) async {
+    await _storage.write(
+      key: 'pairings',
+      value: jsonEncode(list.map((e) => e.toJson()).toList()),
+    );
+    // Mirror the first entry to the legacy 'pairing' key so a downgrade still works.
+    if (list.isNotEmpty) {
+      await _storage.write(key: 'pairing', value: jsonEncode(list.first.toJson()));
+    } else {
+      await _storage.delete(key: 'pairing');
+    }
+  }
+
+  Future<void> start() async {
+    List<PairingPayload> pairings;
+    try {
+      pairings = await _readPairings();
+    } catch (e) {
+      debugPrint('[clippy] secure-storage read failed (likely stale keystore): $e');
+      try { await _storage.deleteAll(); } catch (_) {}
+      pairings = [];
+    }
+    _phoneName = (await _storage.read(key: 'phone_name')) ?? 'phone';
+    if (pairings.isEmpty) {
+      notifyListeners();
+      return;
+    }
+    for (final p in pairings) {
+      _connections.add(_buildConnection(p));
+    }
     notifyListeners();
+    for (final c in _connections) {
+      await c.connect();
+    }
+  }
+
+  /// Release every WS without forgetting the pairings — bg handoff.
+  Future<void> suspend() async {
+    for (final c in _connections) {
+      await c.suspend();
+    }
+    notifyListeners();
+  }
+
+  Future<void> setPaired(PairingPayload p, String phoneName) async {
+    _phoneName = phoneName;
+    await _storage.write(key: 'phone_name', value: phoneName);
+
+    // Replace any existing connection for this device, then append + connect.
+    final existing = _connections.indexWhere((c) => c.paired.deviceId == p.deviceId);
+    if (existing != -1) {
+      await _connections[existing].suspend();
+      _connections.removeAt(existing);
+    }
+    final list = _connections.map((c) => c.paired).toList()..add(p);
+    await _writePairings(list);
+    final c = _buildConnection(p);
+    _connections.add(c);
+    notifyListeners();
+    await c.connect();
+  }
+
+  /// Forget every pairing. (Per-device unpair lands in task D's UI.)
+  Future<void> unpair() async {
+    for (final c in _connections) {
+      await c.suspend();
+    }
+    _connections.clear();
+    await _storage.delete(key: 'pairings');
+    await _storage.delete(key: 'pairing');
+    await _storage.delete(key: 'phone_name');
+    notifyListeners();
+  }
+
+  Future<void> unpairDevice(String deviceId) async {
+    final i = _connections.indexWhere((c) => c.paired.deviceId == deviceId);
+    if (i == -1) return;
+    await _connections[i].suspend();
+    _connections.removeAt(i);
+    await _writePairings(_connections.map((c) => c.paired).toList());
+    notifyListeners();
+  }
+
+  Future<void> sendText(String text) async {
+    for (final c in _connections) {
+      if (c.state == ConnState.connected) {
+        await c.sendText(text);
+      }
+    }
+  }
+
+  Future<void> requestSync() async {
+    for (final c in _connections) {
+      if (c.state == ConnState.connected) {
+        await c.requestSync();
+      }
+    }
+  }
+
+  /// Send to a specific device, or the first connected one if [targetDeviceId]
+  /// is null (preserves the legacy single-peer call site).
+  Future<String?> sendFile({
+    required Uint8List bytes,
+    required String mime,
+    required String kind, // 'image' | 'file'
+    String? name,
+    String? targetDeviceId,
+  }) async {
+    SyncConnection? c;
+    if (targetDeviceId != null) {
+      c = _connections.firstWhere(
+        (x) => x.paired.deviceId == targetDeviceId,
+        orElse: () => _connections.firstWhere(
+          (x) => x.state == ConnState.connected,
+          orElse: () => _connections.first,
+        ),
+      );
+    } else {
+      c = _connections.cast<SyncConnection?>().firstWhere(
+            (x) => x?.state == ConnState.connected,
+            orElse: () => null,
+          );
+    }
+    if (c == null || c.state != ConnState.connected) return null;
+    return c.sendFile(bytes: bytes, mime: mime, kind: kind, name: name);
+  }
+
+  /// Background isolate signals "wrote a new clip" → bubble up so the UI
+  /// re-loads from the DB.
+  void notifyExternalChange() => notifyListeners();
+
+  SyncConnection _buildConnection(PairingPayload p) {
+    return SyncConnection(
+      paired: p,
+      phoneName: _phoneName,
+      onStateChange: notifyListeners,
+      onTransferProgress: (_) => notifyListeners(),
+      onExternalChange: notifyListeners,
+      onPairingUpdated: (updated) async {
+        // mDNS rescue updated the host:port; persist it in the list.
+        final list = _connections.map((c) => c.paired).toList();
+        final idx = list.indexWhere((e) => e.deviceId == updated.deviceId);
+        if (idx != -1) {
+          list[idx] = updated;
+          await _writePairings(list);
+        }
+      },
+    );
   }
 }
