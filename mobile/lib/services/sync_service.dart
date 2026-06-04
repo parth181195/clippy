@@ -13,6 +13,7 @@ import 'device_identity.dart';
 import 'envelope.dart';
 import 'file_transfer_service.dart';
 import 'mdns_discovery.dart';
+import 'outbox_service.dart';
 import 'theme_controller.dart';
 
 enum ConnState { unpaired, connecting, connected, disconnected }
@@ -139,6 +140,10 @@ class SyncConnection {
       _retryAttempt = 0;
       debugPrint('[clippy] connected to ${paired.host}:${paired.port}');
       onStateChange();
+      // Drain anything queued for this desktop while it was offline.
+      _flushOutbox().catchError((e) {
+        debugPrint('[clippy] outbox flush failed: $e');
+      });
     } catch (e) {
       debugPrint('[clippy] (${paired.name}) connect failed: $e');
       try { await ch?.sink.close(); } catch (_) {}
@@ -290,6 +295,64 @@ class SyncConnection {
       }
     } catch (e) {
       debugPrint('[clippy] env parse failed: $e');
+    }
+  }
+
+  /// FIFO-drain anything queued for this device's outbox. Each entry is
+  /// removed on send success or its attempts counter bumped on failure.
+  Future<void> _flushOutbox() async {
+    final entries = await OutboxService.instance.readForDevice(paired.deviceId);
+    for (final e in entries) {
+      if (state != ConnState.connected) break;
+      try {
+        switch (e.kind) {
+          case 'resend':
+            if (e.clipId == null) {
+              await OutboxService.instance.remove(e.id);
+              break;
+            }
+            final db = (await DbService.instance()).db;
+            final rows = await db.query('clips',
+                where: 'id = ?', whereArgs: [e.clipId], limit: 1);
+            if (rows.isEmpty) {
+              await OutboxService.instance.remove(e.id);
+              break;
+            }
+            final row = rows.first;
+            final kind = row['content_type'] as String;
+            final mime = row['mime'] as String;
+            final content = row['content'] as Uint8List;
+            if (kind == 'text' || kind == 'link' || kind == 'code' ||
+                kind == 'color' || kind == 'emoji') {
+              await sendText(utf8.decode(content));
+            } else {
+              await sendFile(bytes: content, mime: mime, kind: kind == 'image' ? 'image' : 'file');
+            }
+            await OutboxService.instance.remove(e.id);
+            break;
+          case 'text':
+            await sendText(utf8.decode(e.payloadBlob ?? Uint8List(0)));
+            await OutboxService.instance.remove(e.id);
+            break;
+          case 'image':
+          case 'file':
+            final meta = e.meta ?? const {};
+            await sendFile(
+              bytes: e.payloadBlob ?? Uint8List(0),
+              mime: meta['mime'] as String? ?? 'application/octet-stream',
+              kind: e.kind,
+              name: meta['name'] as String?,
+            );
+            await OutboxService.instance.remove(e.id);
+            break;
+          default:
+            // Unknown kind — drop so it doesn't stay forever.
+            await OutboxService.instance.remove(e.id);
+        }
+      } catch (err) {
+        await OutboxService.instance.bumpAttempts(e.id, err.toString());
+        break; // stop draining on first failure; flush again on next reconnect
+      }
     }
   }
 
@@ -509,6 +572,47 @@ class SyncService extends ChangeNotifier {
   /// Background isolate signals "wrote a new clip" → bubble up so the UI
   /// re-loads from the DB.
   void notifyExternalChange() => notifyListeners();
+
+  /// Re-send any existing clip to a paired desktop. If the target is offline
+  /// the request is queued in the outbox and drained on reconnect. This is the
+  /// "Send to…" action on history rows (PRD M11).
+  Future<void> sendClipToDevice({
+    required int clipId,
+    required String targetDeviceId,
+  }) async {
+    SyncConnection? c;
+    for (final x in _connections) {
+      if (x.paired.deviceId == targetDeviceId) { c = x; break; }
+    }
+    if (c == null) return;
+    if (c.state != ConnState.connected) {
+      await OutboxService.instance.enqueueResend(
+        targetDeviceId: targetDeviceId,
+        clipId: clipId,
+      );
+      notifyListeners();
+      return;
+    }
+    // Connected — send right now from the clip's DB row.
+    final db = (await DbService.instance()).db;
+    final rows = await db.query('clips',
+        where: 'id = ?', whereArgs: [clipId], limit: 1);
+    if (rows.isEmpty) return;
+    final row = rows.first;
+    final kind = row['content_type'] as String;
+    final mime = row['mime'] as String;
+    final content = row['content'] as Uint8List;
+    if (kind == 'text' || kind == 'link' || kind == 'code' ||
+        kind == 'color' || kind == 'emoji') {
+      await c.sendText(utf8.decode(content));
+    } else {
+      await c.sendFile(
+        bytes: content,
+        mime: mime,
+        kind: kind == 'image' ? 'image' : 'file',
+      );
+    }
+  }
 
   SyncConnection _buildConnection(PairingPayload p) {
     return SyncConnection(

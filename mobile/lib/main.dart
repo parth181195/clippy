@@ -7,6 +7,7 @@ import 'services/background_service.dart';
 import 'services/db_service.dart';
 import 'services/device_identity.dart';
 import 'services/error_reporting.dart';
+import 'services/outbox_service.dart';
 import 'services/share_receiver.dart';
 import 'services/sync_service.dart';
 import 'services/theme_controller.dart';
@@ -34,6 +35,8 @@ Future<void> main() async {
 
 Future<void> _bootstrap() async {
   await DbService.instance();
+  // Purge outbox entries older than 24h on every cold start (PRD §9 / M10).
+  OutboxService.instance.purgeStale().catchError((_) => 0);
   await ThemeController.instance.load();
   // Android 13+ requires runtime POST_NOTIFICATIONS permission for any
   // notification to appear, including the foreground service's persistent one.
