@@ -2,7 +2,7 @@ import sodium from 'libsodium-wrappers';
 import type { Db } from '../db';
 import type { ContentType } from '../ipc-types';
 import { initCrypto, generatePsk, generateIdentity, b64ToBytes, bytesToB64 } from './crypto';
-import { LanWebSocketServer } from './transport';
+import { LanWebSocketServer, type PskCandidate, type TransportSession } from './transport';
 import { ClipboardPlugin } from './plugins/clipboard-plugin';
 import { FileTransferPlugin, type TransferProgress } from './plugins/file-transfer-plugin';
 import { MdnsAdvertise } from './discovery';
@@ -50,6 +50,8 @@ export class SyncService {
   private pendingQrTs: number = 0;                // QR TTL deadline base
   private consumedQrIds = new Set<string>();     // recently-burned QRs
   private backfilledDevices = new Set<string>();
+  /** Active phone sessions keyed by device_id (populated after HELLO). */
+  private sessionsByDevice = new Map<string, TransportSession>();
 
   constructor(deps: SyncServiceDeps) {
     this.deps = deps;
@@ -73,15 +75,15 @@ export class SyncService {
 
   async start(): Promise<void> {
     await initCrypto();
-    // If a paired device exists, bring up the server immediately.
-    const paired = this.loadPairedDevice();
-    if (!paired) {
+    const all = this.loadAllPaired();
+    if (all.length === 0) {
       this.setState('unpaired', null);
       return;
     }
-    this.deviceName = paired.name;
-    this.deviceId = paired.deviceId;
-    await this.bringUp(paired.psk);
+    const primary = all.find((d) => d.is_primary) ?? all[0];
+    this.deviceName = primary.name;
+    this.deviceId = primary.device_id;
+    await this.bringUp();
   }
 
   async stop(): Promise<void> {
@@ -113,9 +115,10 @@ export class SyncService {
     });
     this.pendingQrId = payload.qr_id ?? null;
     this.pendingQrTs = payload.ts ?? Date.now();
-    // Spin up the transport in unpaired-but-listening mode so the phone's
-    // HELLO completes the pairing.
-    if (!this.transport) await this.bringUp(psk);
+    // Spin up the transport in pairing-mode listening so the phone's HELLO can
+    // complete the pairing. The pending PSK is exposed as a candidate via the
+    // transport's pskResolver below.
+    if (!this.transport) await this.bringUp();
     this.setState('connecting', this.deviceName);
     return {
       qrSvg: await payloadToQrSvg(payload),
@@ -141,19 +144,37 @@ export class SyncService {
     await this.stop();
   }
 
-  private async bringUp(psk: Uint8Array): Promise<void> {
+  /** Build the candidate-PSK list for the transport: the pending pairing PSK
+   *  (if any) plus every paired_devices row that isn't revoked. */
+  private buildCandidatePsks = (): PskCandidate[] => {
+    const out: PskCandidate[] = [];
+    if (this.pendingPsk) {
+      out.push({ psk: this.pendingPsk, source: 'pending-pairing' });
+    }
+    try {
+      const rows = this.deps.db
+        .raw()
+        .prepare('SELECT device_id, psk FROM paired_devices WHERE is_revoked = 0')
+        .all() as Array<{ device_id: string; psk: Buffer }>;
+      for (const r of rows) {
+        out.push({ psk: new Uint8Array(r.psk), source: 'paired-device', deviceId: r.device_id });
+      }
+    } catch {}
+    return out;
+  };
+
+  private async bringUp(): Promise<void> {
     if (this.transport) return;
-    const transport = new LanWebSocketServer(SYNC_PORT, psk, {
-      onConnect: (peer) => {
-        log(`peer connected from ${peer}`);
-        this.setState('connected');
+    const transport = new LanWebSocketServer(SYNC_PORT, this.buildCandidatePsks, {
+      onConnect: (s) => {
+        log(`session ${s.id} opened from ${s.peerAddr}`);
       },
-      onDisconnect: () => {
-        log('peer disconnected');
-        if (this.loadPairedDevice()) this.setState('disconnected');
-        else this.setState('unpaired');
+      onDisconnect: (s) => {
+        if (s.deviceId) this.sessionsByDevice.delete(s.deviceId);
+        log(`session ${s.id} closed (${s.deviceName ?? s.peerAddr})`);
+        this.refreshAggregateState();
       },
-      onEnvelope: (env) => this.dispatch(env).catch((e) => log(`dispatch: ${e}`)),
+      onEnvelope: (env, s) => this.dispatch(env, s).catch((e) => log(`dispatch: ${e}`)),
     });
     await transport.start();
     this.transport = transport;
@@ -185,8 +206,22 @@ export class SyncService {
     });
   }
 
-  private async dispatch(env: Envelope): Promise<void> {
-    log(`recv ${env.plugin}/${env.type}`);
+  private refreshAggregateState(): void {
+    const liveCount = this.transport?.liveSessionCount() ?? 0;
+    const anyPaired = this.loadAllPaired().length > 0;
+    if (liveCount > 0) {
+      // Use the most-recently-active session's name as the "current" label.
+      const lastNamed = Array.from(this.sessionsByDevice.values()).at(-1);
+      this.setState('connected', lastNamed?.deviceName ?? this.deviceName);
+    } else if (anyPaired) {
+      this.setState('disconnected');
+    } else {
+      this.setState('unpaired');
+    }
+  }
+
+  private async dispatch(env: Envelope, session: TransportSession): Promise<void> {
+    log(`recv ${env.plugin}/${env.type} (sess=${session.id} dev=${session.deviceId ?? '?'})`);
     if (env.type === TYPES.HELLO) {
       const name = (env.payload['name'] as string) || 'phone';
       const deviceId = (env.payload['device_id'] as string) || 'phone';
@@ -263,10 +298,17 @@ export class SyncService {
           .run(Date.now(), deviceId);
       }
 
+      // Attach identity to the session + map it for targeted sends.
+      session.deviceId = deviceId;
+      session.deviceName = name;
+      this.sessionsByDevice.set(deviceId, session);
       this.deviceName = name;
       this.deviceId = deviceId;
-      this.setState('connected', name);
-      await this.transport?.send(makeEnvelope('core', TYPES.ACK, { ref_id: env.id }));
+      this.refreshAggregateState();
+      await this.transport?.send(
+        makeEnvelope('core', TYPES.ACK, { ref_id: env.id }),
+        deviceId
+      );
       // Backfill recent history on every HELLO. Receiver UNIQUE(content_hash)
       // drops dupes and the bump-on-conflict path keeps existing rows on top,
       // so re-sending is cheap and survives re-installs.
@@ -314,12 +356,30 @@ export class SyncService {
     try {
       const row = this.deps.db
         .raw()
-        .prepare('SELECT device_id, name, psk FROM paired_devices LIMIT 1')
+        .prepare('SELECT device_id, name, psk FROM paired_devices WHERE is_revoked = 0 ORDER BY primary_device DESC, last_seen DESC LIMIT 1')
         .get() as { device_id: string; name: string; psk: Buffer } | undefined;
       if (!row) return null;
       return { deviceId: row.device_id, name: row.name, psk: new Uint8Array(row.psk) };
     } catch {
       return null;
+    }
+  }
+
+  /** Every non-revoked paired phone. Used by the candidate-PSK builder + the
+   *  aggregate state checker. */
+  private loadAllPaired(): Array<{ device_id: string; name: string; psk: Buffer; is_primary: number }> {
+    try {
+      return this.deps.db
+        .raw()
+        .prepare(
+          `SELECT device_id, name, psk, primary_device AS is_primary
+             FROM paired_devices
+            WHERE is_revoked = 0
+            ORDER BY primary_device DESC, last_seen DESC`
+        )
+        .all() as Array<{ device_id: string; name: string; psk: Buffer; is_primary: number }>;
+    } catch {
+      return [];
     }
   }
 }
