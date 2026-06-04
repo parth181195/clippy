@@ -96,21 +96,47 @@ class SyncService extends ChangeNotifier {
   ConnState state = ConnState.unpaired;
   String? get desktopName => _paired?.name;
 
-  Future<void> start() async {
-    String? raw;
+  /// Reads the paired-desktops list from secure storage, with a one-time
+  /// migration from the legacy single-pairing 'pairing' key into the new
+  /// 'pairings' (JSON array) key. Returns `[]` when nothing is paired.
+  Future<List<PairingPayload>> _readPairings() async {
     try {
-      raw = await _storage.read(key: 'pairing');
+      final raw = await _storage.read(key: 'pairings');
+      if (raw != null) {
+        final list = jsonDecode(raw) as List<dynamic>;
+        return list
+            .map((e) => PairingPayload.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+    } catch (_) {}
+    try {
+      final legacy = await _storage.read(key: 'pairing');
+      if (legacy == null) return [];
+      final p = PairingPayload.fromJson(jsonDecode(legacy) as Map<String, dynamic>);
+      // Persist forward; keep 'pairing' too so a downgrade to v0.1 still works.
+      await _storage.write(key: 'pairings', value: jsonEncode([p.toJson()]));
+      return [p];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> start() async {
+    List<PairingPayload> pairings;
+    try {
+      pairings = await _readPairings();
     } catch (e) {
       debugPrint('[clippy] secure-storage read failed (likely stale keystore): $e');
       try { await _storage.deleteAll(); } catch (_) {}
-      raw = null;
+      pairings = [];
     }
-    if (raw == null) {
+    if (pairings.isEmpty) {
       state = ConnState.unpaired;
       notifyListeners();
       return;
     }
-    _paired = PairingPayload.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    // Single-peer for now — SyncPool refactor (B2/B3) will iterate the list.
+    _paired = pairings.first;
     _psk = base64Decode(_paired!.psk);
     _phoneName = (await _storage.read(key: 'phone_name')) ?? 'phone';
     // Reconnect immediately when Wi-Fi comes back (bypasses exp-backoff wait).
@@ -142,6 +168,11 @@ class SyncService extends ChangeNotifier {
   }
 
   Future<void> setPaired(PairingPayload p, String phoneName) async {
+    // Read the existing list, replace or append this device, persist forward.
+    final existing = await _readPairings();
+    final filtered = existing.where((e) => e.deviceId != p.deviceId).toList()..add(p);
+    await _storage.write(key: 'pairings', value: jsonEncode(filtered.map((e) => e.toJson()).toList()));
+    // Mirror to the legacy 'pairing' key so a downgrade to v0.1 still works.
     await _storage.write(key: 'pairing', value: jsonEncode(p.toJson()));
     await _storage.write(key: 'phone_name', value: phoneName);
     _paired = p;
@@ -153,6 +184,7 @@ class SyncService extends ChangeNotifier {
   Future<void> unpair() async {
     await _channel?.sink.close(ws_status.normalClosure);
     _channel = null;
+    await _storage.delete(key: 'pairings');
     await _storage.delete(key: 'pairing');
     await _storage.delete(key: 'phone_name');
     _paired = null;
