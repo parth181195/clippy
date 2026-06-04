@@ -1,8 +1,10 @@
 import 'package:disable_battery_optimization/disable_battery_optimization.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import '../app.dart' show ScreenHeader;
 import '../services/error_reporting.dart';
+import '../services/pairings_backup.dart';
 import '../services/sync_service.dart';
 import '../services/theme_controller.dart';
 import '../theme.dart';
@@ -40,6 +42,22 @@ class SettingsScreen extends StatelessWidget {
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const DiagnosticsScreen()),
                 ),
+                last: true,
+              ),
+            ]),
+            const _SectionLabel('Backup'),
+            _Group(children: [
+              _Row(
+                label: 'Export pairings…',
+                hint: 'Encrypted with a passphrase you set. Losing it is unrecoverable.',
+                trailing: Icon(Icons.upload_outlined, size: 18, color: ClippyTokens.accent),
+                onTap: () => _showExportDialog(context),
+              ),
+              _Row(
+                label: 'Restore from backup…',
+                hint: 'Paste the blob and the passphrase that encrypted it.',
+                trailing: Icon(Icons.download_outlined, size: 18, color: ClippyTokens.accent),
+                onTap: () => _showImportDialog(context),
                 last: true,
               ),
             ]),
@@ -421,3 +439,151 @@ class _BackgroundCardState extends State<_BackgroundCard> {
     ]);
   }
 }
+
+Future<void> _showExportDialog(BuildContext context) async {
+  final ctrl = TextEditingController();
+  final pass = await showDialog<String>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: ClippyTokens.surfaceRaisedDark,
+      title: Text("Set a passphrase", style: TextStyle(color: ClippyTokens.textDark)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            "We encrypt the backup with this passphrase using Argon2id. Store it safely — losing it means losing the backup.",
+            style: TextStyle(color: ClippyTokens.textSecDark, fontSize: 12.5, height: 1.4),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: ctrl,
+            obscureText: true,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: "Passphrase",
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+        FilledButton(
+          onPressed: () => Navigator.pop(ctx, ctrl.text),
+          style: FilledButton.styleFrom(backgroundColor: ClippyTokens.accent),
+          child: const Text("Export"),
+        ),
+      ],
+    ),
+  );
+  if (pass == null || pass.isEmpty) return;
+  try {
+    final blob = await PairingsBackup.export(pass);
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: ClippyTokens.surfaceRaisedDark,
+        title: Text("Backup blob", style: TextStyle(color: ClippyTokens.textDark)),
+        content: SizedBox(
+          width: 360,
+          child: SingleChildScrollView(
+            child: SelectableText(
+              blob,
+              style: TextStyle(color: ClippyTokens.textDark, fontSize: 11, fontFamily: "monospace"),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: blob));
+              if (!ctx.mounted) return;
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(ctx).showSnackBar(
+                const SnackBar(content: Text("Copied — store it somewhere safe"), duration: Duration(milliseconds: 1500)),
+              );
+            },
+            child: const Text("Copy"),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: FilledButton.styleFrom(backgroundColor: ClippyTokens.accent),
+            child: const Text("Done"),
+          ),
+        ],
+      ),
+    );
+  } catch (e) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Export failed: $e"), duration: const Duration(milliseconds: 1800)),
+    );
+  }
+}
+
+Future<void> _showImportDialog(BuildContext context) async {
+  final blobCtrl = TextEditingController();
+  final passCtrl = TextEditingController();
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: ClippyTokens.surfaceRaisedDark,
+      title: Text("Restore pairings", style: TextStyle(color: ClippyTokens.textDark)),
+      content: SizedBox(
+        width: 360,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: blobCtrl,
+              maxLines: 4,
+              minLines: 3,
+              decoration: const InputDecoration(
+                labelText: "Backup blob",
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: passCtrl,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: "Passphrase",
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
+        FilledButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          style: FilledButton.styleFrom(backgroundColor: ClippyTokens.accent),
+          child: const Text("Restore"),
+        ),
+      ],
+    ),
+  );
+  if (ok != true) return;
+  try {
+    final restored = await PairingsBackup.importBlob(blobCtrl.text, passCtrl.text);
+    if (!context.mounted) return;
+    if (restored) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Restored — restart the app to reconnect"), duration: Duration(milliseconds: 2200)),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Wrong passphrase"), duration: Duration(milliseconds: 1500)),
+      );
+    }
+  } catch (e) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Restore failed: $e"), duration: const Duration(milliseconds: 1800)),
+    );
+  }
+}
+
