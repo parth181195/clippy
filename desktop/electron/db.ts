@@ -100,6 +100,22 @@ CREATE TABLE IF NOT EXISTS device_identity (
     created_at  INTEGER NOT NULL
 );
 
+-- Per-target outbox for sends to a paired device that's currently offline.
+-- Entries are flushed FIFO on reconnect and purged when > 24h old on launch.
+CREATE TABLE IF NOT EXISTS outbox (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    target_device_id TEXT NOT NULL,
+    kind             TEXT NOT NULL,          -- 'text' | 'image' | 'file' | 'resend'
+    clip_id          INTEGER REFERENCES clips(id) ON DELETE SET NULL,
+    payload_blob     BLOB,
+    meta_json        TEXT,
+    created_at       INTEGER NOT NULL,
+    attempts         INTEGER NOT NULL DEFAULT 0,
+    last_error       TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_outbox_target
+    ON outbox(target_device_id, created_at);
+
 INSERT OR IGNORE INTO excluded_apps(app_id) VALUES
     ('keepassxc'), ('bitwarden'), ('1password'), ('gnome-keyring');
 
@@ -124,6 +140,38 @@ export class Db {
     mkdirSync(dirname(path), { recursive: true });
     this.db = new Database(path);
     this.db.exec(SCHEMA_V1);
+    this.runMigrations();
+  }
+
+  /** Idempotent column-level migrations for upgrades from earlier schemas. */
+  private runMigrations(): void {
+    const has = (table: string, column: string): boolean => {
+      const rows = this.db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+      return rows.some((r) => r.name === column);
+    };
+    const add = (sql: string) => this.db.exec(sql);
+
+    // Multi-pair additions to paired_devices.
+    if (!has('paired_devices', 'last_seen'))
+      add('ALTER TABLE paired_devices ADD COLUMN last_seen INTEGER NOT NULL DEFAULT 0');
+    if (!has('paired_devices', 'auto_sync_outgoing'))
+      add('ALTER TABLE paired_devices ADD COLUMN auto_sync_outgoing INTEGER NOT NULL DEFAULT 1');
+    if (!has('paired_devices', 'device_kind'))
+      add("ALTER TABLE paired_devices ADD COLUMN device_kind TEXT NOT NULL DEFAULT 'phone'");
+    if (!has('paired_devices', 'primary_device'))
+      add('ALTER TABLE paired_devices ADD COLUMN primary_device INTEGER NOT NULL DEFAULT 0');
+    if (!has('paired_devices', 'is_revoked'))
+      add('ALTER TABLE paired_devices ADD COLUMN is_revoked INTEGER NOT NULL DEFAULT 0');
+    if (!has('paired_devices', 'dnd_window'))
+      add('ALTER TABLE paired_devices ADD COLUMN dnd_window TEXT');
+    if (!has('paired_devices', 'local_label'))
+      add('ALTER TABLE paired_devices ADD COLUMN local_label TEXT');
+
+    // Network-provenance tags on clips (source_app stays for desktop-app provenance).
+    if (!has('clips', 'source_device_id'))
+      add('ALTER TABLE clips ADD COLUMN source_device_id TEXT');
+    if (!has('clips', 'source_device_name'))
+      add('ALTER TABLE clips ADD COLUMN source_device_name TEXT');
   }
 
   static openDefault(): Db {
