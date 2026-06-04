@@ -417,9 +417,12 @@ class SyncService extends ChangeNotifier {
     return m;
   }
 
-  /// All currently-paired desktops (for the upcoming D-task UI).
+  /// All currently-paired desktops.
   List<PairingPayload> get pairings =>
       _connections.map((c) => c.paired).toList(growable: false);
+
+  /// Live SyncConnection objects so the UI can render per-device state.
+  List<SyncConnection> get connections => List.unmodifiable(_connections);
 
   Future<List<PairingPayload>> _readPairings() async {
     try {
