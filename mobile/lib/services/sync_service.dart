@@ -6,8 +6,10 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/status.dart' as ws_status;
+import 'package:sodium_libs/sodium_libs.dart';
 import 'crypto_service.dart';
 import 'db_service.dart';
+import 'device_identity.dart';
 import 'envelope.dart';
 import 'file_transfer_service.dart';
 import 'mdns_discovery.dart';
@@ -178,17 +180,7 @@ class SyncService extends ChangeNotifier {
         onError: (_) => _onDisconnect(ch!),
         cancelOnError: true,
       );
-      await _send(Envelope(
-        type: 'HELLO',
-        id: newUuidV4(),
-        ts: DateTime.now().millisecondsSinceEpoch,
-        plugin: 'core',
-        payload: {
-          'device_id': 'clippy-phone',
-          'name': _phoneName,
-          'version': '0.1.0',
-        },
-      ));
+      await _send(await _buildHello());
       state = ConnState.connected;
       _retryAttempt = 0;
       debugPrint('[clippy] connected to ${_paired!.host}:${_paired!.port}');
@@ -253,6 +245,33 @@ class SyncService extends ChangeNotifier {
     final pt = utf8.encode(jsonEncode(env.toJson()));
     final b64 = await CryptoService.encrypt(_psk!, Uint8List.fromList(pt));
     _channel!.sink.add(b64);
+  }
+
+  /// Builds a HELLO with this phone's stable identity + a fresh signature so
+  /// the desktop can verify we really are the device it paired with (PRD P4).
+  Future<Envelope> _buildHello() async {
+    final id = DeviceIdentity.instance;
+    final sodium = await SodiumInit.init();
+    final nonce = sodium.randombytes.buf(16);
+    final nonceB64 = base64Encode(nonce);
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final signedMaterial = utf8.encode('${id.deviceId}|$ts|$nonceB64');
+    final sig = await id.sign(Uint8List.fromList(signedMaterial));
+    return Envelope(
+      type: 'HELLO',
+      id: newUuidV4(),
+      ts: ts,
+      plugin: 'core',
+      payload: {
+        'device_id': id.deviceId,
+        'name': _phoneName,
+        'version': '0.1.0',
+        'pubkey': base64Encode(id.publicKey),
+        'nonce': nonceB64,
+        'signature': base64Encode(sig),
+      },
+      from: {'device_id': id.deviceId, 'name': _phoneName},
+    );
   }
 
   Future<void> sendText(String text) async {

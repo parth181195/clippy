@@ -4,6 +4,8 @@ class Envelope {
   final int ts;
   final String plugin;
   final Map<String, dynamic> payload;
+  /// Optional sender attribution; populated by SyncPool for multi-pair routing.
+  final Map<String, String>? from;
 
   Envelope({
     required this.type,
@@ -11,6 +13,7 @@ class Envelope {
     required this.ts,
     required this.plugin,
     required this.payload,
+    this.from,
   });
 
   factory Envelope.fromJson(Map<String, dynamic> j) => Envelope(
@@ -19,6 +22,9 @@ class Envelope {
         ts: (j['ts'] as num).toInt(),
         plugin: j['plugin'] as String,
         payload: Map<String, dynamic>.from(j['payload'] as Map),
+        from: j['from'] is Map
+            ? (j['from'] as Map).map((k, v) => MapEntry(k.toString(), v.toString()))
+            : null,
       );
 
   Map<String, dynamic> toJson() => {
@@ -27,6 +33,7 @@ class Envelope {
         'ts': ts,
         'plugin': plugin,
         'payload': payload,
+        if (from != null) 'from': from,
       };
 }
 

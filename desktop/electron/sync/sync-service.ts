@@ -1,3 +1,4 @@
+import sodium from 'libsodium-wrappers';
 import type { Db } from '../db';
 import type { ContentType } from '../ipc-types';
 import { initCrypto, generatePsk, generateIdentity, b64ToBytes, bytesToB64 } from './crypto';
@@ -5,8 +6,8 @@ import { LanWebSocketServer } from './transport';
 import { ClipboardPlugin } from './plugins/clipboard-plugin';
 import { FileTransferPlugin, type TransferProgress } from './plugins/file-transfer-plugin';
 import { MdnsAdvertise } from './discovery';
-import { makePairingPayload, payloadToQrSvg, payloadToShortCode, type PairingPayload } from './pairing';
-import { makeEnvelope, type Envelope, TYPES } from './protocol';
+import { makePairingPayload, payloadToQrSvg, payloadToShortCode, PAIRING_QR_TTL_MS, type PairingPayload } from './pairing';
+import { makeEnvelope, type Envelope, TYPES, HELLO_SKEW_MS } from './protocol';
 import { appendFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { app } from 'electron';
@@ -45,6 +46,9 @@ export class SyncService {
   private deviceId: string | null = null;
   private pendingPsk: Uint8Array | null = null; // PSK held during pairing flow
   private pendingPubkey: Uint8Array | null = null;
+  private pendingQrId: string | null = null;     // single-use enforcement (P5)
+  private pendingQrTs: number = 0;                // QR TTL deadline base
+  private consumedQrIds = new Set<string>();     // recently-burned QRs
   private backfilledDevices = new Set<string>();
 
   constructor(deps: SyncServiceDeps) {
@@ -107,6 +111,8 @@ export class SyncService {
       psk,
       pubkey: id.pk,
     });
+    this.pendingQrId = payload.qr_id ?? null;
+    this.pendingQrTs = payload.ts ?? Date.now();
     // Spin up the transport in unpaired-but-listening mode so the phone's
     // HELLO completes the pairing.
     if (!this.transport) await this.bringUp(psk);
@@ -122,6 +128,8 @@ export class SyncService {
   cancelPairing(): void {
     this.pendingPsk = null;
     this.pendingPubkey = null;
+    this.pendingQrId = null;
+    this.pendingQrTs = 0;
     if (!this.loadPairedDevice()) {
       this.stop().catch(() => {});
     }
@@ -180,26 +188,81 @@ export class SyncService {
   private async dispatch(env: Envelope): Promise<void> {
     log(`recv ${env.plugin}/${env.type}`);
     if (env.type === TYPES.HELLO) {
-      // Phone says hello with its name + (eventually) pubkey. Persist pairing.
       const name = (env.payload['name'] as string) || 'phone';
       const deviceId = (env.payload['device_id'] as string) || 'phone';
+      const pubkeyB64 = (env.payload['pubkey'] as string) || '';
+      const sigB64 = (env.payload['signature'] as string) || '';
+      const nonceB64 = (env.payload['nonce'] as string) || '';
+
+      // Pairing path — pendingPsk set means this HELLO is the QR being consumed.
       if (this.pendingPsk) {
-        const pubkey = (env.payload['pubkey'] as string) || '';
+        // P5: QR TTL + single-use enforcement.
+        const expired = Date.now() - this.pendingQrTs > PAIRING_QR_TTL_MS;
+        const consumed = this.pendingQrId !== null && this.consumedQrIds.has(this.pendingQrId);
+        if (expired || consumed) {
+          log(`pair refused: QR ${expired ? 'expired' : 'already consumed'}`);
+          this.pendingPsk = null;
+          this.pendingPubkey = null;
+          this.pendingQrId = null;
+          this.pendingQrTs = 0;
+          return; // No ACK — phone gets timeout, shows "QR expired".
+        }
         try {
           this.deps.db
             .raw()
             .prepare(
-              `INSERT OR REPLACE INTO paired_devices(device_id, name, pubkey, psk, paired_at)
-               VALUES (?, ?, ?, ?, ?)`
+              `INSERT OR REPLACE INTO paired_devices(device_id, name, pubkey, psk, paired_at, last_seen)
+               VALUES (?, ?, ?, ?, ?, ?)`
             )
-            .run(deviceId, name, Buffer.from(pubkey ? b64ToBytes(pubkey) : new Uint8Array()), Buffer.from(this.pendingPsk), Date.now());
+            .run(
+              deviceId, name,
+              Buffer.from(pubkeyB64 ? b64ToBytes(pubkeyB64) : new Uint8Array()),
+              Buffer.from(this.pendingPsk), Date.now(), Date.now()
+            );
+          if (this.pendingQrId) this.consumedQrIds.add(this.pendingQrId);
           this.pendingPsk = null;
           this.pendingPubkey = null;
+          this.pendingQrId = null;
+          this.pendingQrTs = 0;
           log(`paired with "${name}" (${deviceId})`);
         } catch (e) {
           log(`pair persist failed: ${e}`);
         }
+      } else {
+        // Reconnect path — phone we already know. Verify revocation + signature.
+        const row = this.deps.db.raw().prepare(
+          'SELECT pubkey, is_revoked FROM paired_devices WHERE device_id = ?'
+        ).get(deviceId) as { pubkey: Buffer; is_revoked: number } | undefined;
+        if (row?.is_revoked === 1) {
+          log(`HELLO refused: device_id=${deviceId} is revoked`);
+          return; // no ACK — phone will see the connection drop.
+        }
+        if (row && row.pubkey && row.pubkey.length === 32 && sigB64 && nonceB64) {
+          await initCrypto();
+          const ts = env.ts;
+          const skew = Math.abs(Date.now() - ts);
+          if (skew > HELLO_SKEW_MS) {
+            log(`HELLO refused: clock skew ${Math.round(skew / 1000)}s for ${deviceId}`);
+            return;
+          }
+          const message = Buffer.from(`${deviceId}|${ts}|${nonceB64}`, 'utf8');
+          const sig = b64ToBytes(sigB64);
+          try {
+            const ok = sodium.crypto_sign_verify_detached(sig, message, new Uint8Array(row.pubkey));
+            if (!ok) {
+              log(`HELLO refused: bad signature from ${deviceId}`);
+              return;
+            }
+          } catch (e) {
+            log(`HELLO signature verify error from ${deviceId}: ${e}`);
+            return;
+          }
+        }
+        this.deps.db.raw()
+          .prepare('UPDATE paired_devices SET last_seen = ? WHERE device_id = ?')
+          .run(Date.now(), deviceId);
       }
+
       this.deviceName = name;
       this.deviceId = deviceId;
       this.setState('connected', name);
@@ -208,6 +271,18 @@ export class SyncService {
       // drops dupes and the bump-on-conflict path keeps existing rows on top,
       // so re-sending is cheap and survives re-installs.
       this.clipPlugin?.sendHistory().catch((e) => log(`sendHistory: ${e}`));
+      return;
+    }
+    if (env.type === TYPES.UNPAIR) {
+      const peerId = env.from?.device_id ?? this.deviceId ?? '';
+      if (peerId) {
+        try {
+          this.deps.db.raw().prepare('DELETE FROM paired_devices WHERE device_id = ?').run(peerId);
+          log(`UNPAIR received → forgot ${peerId}`);
+        } catch (e) {
+          log(`UNPAIR failed: ${e}`);
+        }
+      }
       return;
     }
     if (env.type === TYPES.SYNC_REQUEST) {
