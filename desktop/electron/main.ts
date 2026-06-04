@@ -336,6 +336,10 @@ app.whenReady().then(() => {
       deviceName: syncService?.pairedDeviceName() ?? null,
     }),
     onSendClipToPeer: async (clipId) => (await syncService?.sendClipToPeer(clipId)) ?? null,
+    onSendClipToDevice: async (clipId, deviceId) => {
+      await syncService?.sendClipToDevice(clipId, deviceId);
+    },
+    onListSyncDevices: async () => syncService?.listDevices() ?? [],
     onPickColor: () => doPickColor(),
     onSyncTheme: (mode, accent) => { void syncService?.sendTheme(mode, accent); },
   });

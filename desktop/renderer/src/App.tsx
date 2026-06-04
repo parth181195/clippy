@@ -42,6 +42,7 @@ export function App() {
   const [toast, setToast] = useState<string | null>(null);
   const [transfers, setTransfers] = useState<TransferProgressEvent[]>([]);
   const [multiSel, setMultiSel] = useState<Set<string>>(new Set());
+  const [syncDevices, setSyncDevices] = useState<{ deviceId: string; name: string; isConnected: boolean }[]>([]);
   const searchRef = useRef<SearchBarHandle>(null);
 
   // Initial load
@@ -60,7 +61,18 @@ export function App() {
     });
     // Hydrate + subscribe to connection-state events
     void window.clippy.pairingState().then(setConn);
-    const offConn = window.clippy.onConnState(setConn);
+    const offConn = window.clippy.onConnState((s) => {
+      setConn(s);
+      // Refresh paired-devices list whenever connection state changes — covers
+      // pairings added/removed and (re)connections that flip isConnected.
+      window.clippy.listSyncDevices().then((ds) =>
+        setSyncDevices(ds.map((d) => ({ deviceId: d.deviceId, name: d.name, isConnected: d.isConnected })))
+      ).catch(() => {});
+    });
+    // Initial fetch.
+    window.clippy.listSyncDevices().then((ds) =>
+      setSyncDevices(ds.map((d) => ({ deviceId: d.deviceId, name: d.name, isConnected: d.isConnected })))
+    ).catch(() => {});
     // Transfer progress: keep up to 4 most-recent, drop done ones after 1.5s.
     const offTr = window.clippy.onTransferProgress((p) => {
       setTransfers((prev) => {
@@ -367,6 +379,20 @@ export function App() {
               onSend: async () => {
                 setByHash(c.hash);
                 await sendSelectedToPeer();
+              },
+              sendTargets: syncDevices,
+              onSendToDevice: async (deviceId) => {
+                try {
+                  await window.clippy.sendClipToDevice(c.id, deviceId);
+                  const dev = syncDevices.find((d) => d.deviceId === deviceId);
+                  setToast(
+                    dev?.isConnected
+                      ? `Sent to ${dev.name}`
+                      : `Queued for ${dev?.name ?? 'device'}`
+                  );
+                } catch (e) {
+                  setToast(`Send failed: ${e}`);
+                }
               },
               onEdit: () => {
                 setByHash(c.hash);

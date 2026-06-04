@@ -349,6 +349,46 @@ export class SyncService {
     return this.filePlugin.sendClip(clipId);
   }
 
+  /** Snapshot of paired devices + live connection state for the renderer's
+   *  multi-pair UI. */
+  listDevices(): Array<{
+    deviceId: string;
+    name: string;
+    isPrimary: boolean;
+    isRevoked: boolean;
+    isConnected: boolean;
+    lastSeen: number;
+  }> {
+    try {
+      const rows = this.deps.db
+        .raw()
+        .prepare(
+          `SELECT device_id, name, primary_device AS is_primary,
+                  is_revoked, last_seen, local_label
+             FROM paired_devices
+            ORDER BY primary_device DESC, last_seen DESC`
+        )
+        .all() as Array<{
+        device_id: string;
+        name: string;
+        is_primary: number;
+        is_revoked: number;
+        last_seen: number;
+        local_label: string | null;
+      }>;
+      return rows.map((r) => ({
+        deviceId: r.device_id,
+        name: r.local_label || r.name,
+        isPrimary: r.is_primary === 1,
+        isRevoked: r.is_revoked === 1,
+        isConnected: this.sessionsByDevice.has(r.device_id),
+        lastSeen: r.last_seen,
+      }));
+    } catch {
+      return [];
+    }
+  }
+
   /** Send (or enqueue) a clip to a specific paired phone (PRD D9). For
    *  text-shaped clips this fires a targeted CLIP_NEW; for files/images it
    *  reuses the existing file plugin (broadcast at this stage). When the

@@ -41,6 +41,10 @@ const api = {
   unpair: () => ipcRenderer.invoke(IPC.unpair) as Promise<void>,
   sendClipToPeer: (clipId: number) =>
     ipcRenderer.invoke(IPC.sendClipToPeer, clipId) as Promise<string | null>,
+  sendClipToDevice: (clipId: number, deviceId: string) =>
+    ipcRenderer.invoke(IPC.sendClipToDevice, clipId, deviceId) as Promise<void>,
+  listSyncDevices: () =>
+    ipcRenderer.invoke(IPC.listSyncDevices) as Promise<import('./ipc-types').SyncDeviceDto[]>,
 
   exclusionsList: () => ipcRenderer.invoke(IPC.exclusionsList) as Promise<string[]>,
   exclusionsAdd: (appId: string) => ipcRenderer.invoke(IPC.exclusionsAdd, appId) as Promise<void>,
