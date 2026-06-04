@@ -8,6 +8,7 @@ import { FileTransferPlugin, type TransferProgress } from './plugins/file-transf
 import { MdnsAdvertise } from './discovery';
 import { makePairingPayload, payloadToQrSvg, payloadToShortCode, PAIRING_QR_TTL_MS, type PairingPayload } from './pairing';
 import { makeEnvelope, type Envelope, TYPES, HELLO_SKEW_MS } from './protocol';
+import { enqueueResend, readForDevice, removeEntry, bumpAttempts } from './outbox';
 import { appendFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { app } from 'electron';
@@ -313,6 +314,8 @@ export class SyncService {
       // drops dupes and the bump-on-conflict path keeps existing rows on top,
       // so re-sending is cheap and survives re-installs.
       this.clipPlugin?.sendHistory().catch((e) => log(`sendHistory: ${e}`));
+      // Drain anything queued for this device while it was offline (PRD M10/D8).
+      this.flushOutboxFor(deviceId).catch((e) => log(`outbox flush: ${e}`));
       return;
     }
     if (env.type === TYPES.UNPAIR) {
@@ -344,6 +347,60 @@ export class SyncService {
   async sendClipToPeer(clipId: number): Promise<string | null> {
     if (!this.filePlugin) return null;
     return this.filePlugin.sendClip(clipId);
+  }
+
+  /** Send (or enqueue) a clip to a specific paired phone (PRD D9). For
+   *  text-shaped clips this fires a targeted CLIP_NEW; for files/images it
+   *  reuses the existing file plugin (broadcast at this stage). When the
+   *  target is offline the request goes to the outbox and drains on reconnect. */
+  async sendClipToDevice(clipId: number, deviceId: string): Promise<void> {
+    const connected = this.sessionsByDevice.has(deviceId);
+    if (!connected) {
+      enqueueResend(this.deps.db, deviceId, clipId);
+      return;
+    }
+    const row = this.deps.db
+      .raw()
+      .prepare(
+        `SELECT content_type, mime, content, content_hash, preview
+           FROM clips WHERE id = ?`
+      )
+      .get(clipId) as
+      | { content_type: string; mime: string; content: Buffer; content_hash: string; preview: string }
+      | undefined;
+    if (!row) return;
+    const textShaped =
+      row.content_type === 'text' || row.content_type === 'link' ||
+      row.content_type === 'code' || row.content_type === 'color' ||
+      row.content_type === 'emoji';
+    if (textShaped) {
+      const env = makeEnvelope('clipboard', TYPES.CLIP_NEW, {
+        kind: row.content_type,
+        mime: row.mime,
+        preview: row.preview,
+        hash: row.content_hash,
+        content_inline: row.content.toString('base64'),
+      });
+      await this.transport?.send(env, deviceId);
+    } else {
+      await this.filePlugin?.sendClip(clipId);
+    }
+  }
+
+  /** Drain a single device's outbox FIFO. Stops on the first error. */
+  private async flushOutboxFor(deviceId: string): Promise<void> {
+    const entries = readForDevice(this.deps.db, deviceId);
+    for (const e of entries) {
+      try {
+        if (e.kind === 'resend' && e.clipId != null) {
+          await this.sendClipToDevice(e.clipId, deviceId);
+        }
+        removeEntry(this.deps.db, e.id);
+      } catch (err) {
+        bumpAttempts(this.deps.db, e.id, String(err));
+        break;
+      }
+    }
   }
 
   /** Push the current theme mode + accent hex to the phone. */

@@ -19,6 +19,7 @@ import { pickColor } from './color-picker';
 import { initSentryMain, setReportingEnabled } from './sentry';
 import { ensureGnomeExtension } from './gnome-extension';
 import { getDeviceIdentity } from './device-identity';
+import { purgeStale as purgeOutboxStale } from './sync/outbox';
 
 // Initialize crash/error reporting as early as possible (gated at runtime by
 // the user's `errorReporting` setting once the DB loads).
@@ -279,6 +280,8 @@ app.whenReady().then(() => {
   // Ensure this desktop has an ed25519 identity (lazy-generates on first run).
   // Awaiting this guarantees later sync code can sign HELLOs synchronously.
   getDeviceIdentity(db).catch((e) => console.warn('device-identity init failed', e));
+  // Drop outbox entries older than 24 h on every cold start (PRD §9 / D8).
+  try { purgeOutboxStale(db); } catch (e) { console.warn('outbox purge failed', e); }
 
   sound = new SoundPlayer(settings.soundOnCopy);
   notifier = new Notifier(settings.notificationsOnCopy);
