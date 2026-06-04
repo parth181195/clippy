@@ -104,6 +104,78 @@ class _RecentScreenState extends State<RecentScreen> {
     _load();
   }
 
+  void _sendTo(Map<String, Object?> row) {
+    final clipId = row['id'] as int?;
+    if (clipId == null) return;
+    final conns = SyncService.instance.connections;
+    if (conns.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No paired desktops'), duration: Duration(milliseconds: 1400)),
+      );
+      return;
+    }
+    if (conns.length == 1) {
+      _doSendTo(clipId, conns.first);
+      return;
+    }
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: ClippyTokens.surfaceRaisedDark,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
+                child: Text(
+                  'Send to…',
+                  style: TextStyle(
+                    color: ClippyTokens.textSecDark,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.2,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ),
+              for (final c in conns)
+                ListTile(
+                  leading: Icon(
+                    c.state == ConnState.connected ? Icons.monitor : Icons.cloud_off,
+                    color: c.state == ConnState.connected
+                        ? const Color(0xFF7CE8B5)
+                        : ClippyTokens.textTerDark,
+                  ),
+                  title: Text(c.desktopName, style: TextStyle(color: ClippyTokens.textDark)),
+                  subtitle: Text(
+                    c.state == ConnState.connected ? 'Connected' : 'Offline — will queue',
+                    style: TextStyle(color: ClippyTokens.textSecDark, fontSize: 11.5, fontFamily: 'monospace'),
+                  ),
+                  onTap: () { Navigator.pop(ctx); _doSendTo(clipId, c); },
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _doSendTo(int clipId, SyncConnection c) async {
+    await SyncService.instance.sendClipToDevice(clipId: clipId, targetDeviceId: c.deviceId);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(c.state == ConnState.connected
+            ? 'Sent to ${c.desktopName}'
+            : 'Queued for ${c.desktopName}'),
+        duration: const Duration(milliseconds: 1400),
+      ),
+    );
+  }
+
   void _openSheet(Map<String, Object?> row) {
     final isFav = (row['is_favorite'] as int?) == 1;
     final isPin = (row['is_pinned'] as int?) == 1;
@@ -131,6 +203,11 @@ class _RecentScreenState extends State<RecentScreen> {
                 leading: Icon(isPin ? Icons.push_pin : Icons.push_pin_outlined, color: ClippyTokens.accent),
                 title: Text(isPin ? 'Unpin' : 'Pin'),
                 onTap: () { Navigator.pop(ctx); _togglePin(row); },
+              ),
+              ListTile(
+                leading: Icon(Icons.send_outlined, color: ClippyTokens.accent),
+                title: const Text('Send to…'),
+                onTap: () { Navigator.pop(ctx); _sendTo(row); },
               ),
               const Divider(height: 1),
               ListTile(
@@ -342,9 +419,13 @@ class _ClipRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final preview = row['preview']?.toString() ?? '';
     final source = row['source_app']?.toString() ?? '';
+    final sourceDeviceName = row['source_device_name']?.toString() ?? '';
     final type = row['content_type']?.toString() ?? 'text';
     final createdAt = (row['created_at'] as int?) ?? 0;
-    final fromDesktop = source.toLowerCase().contains('desktop');
+    final fromDesktop = sourceDeviceName.isNotEmpty || source.toLowerCase().contains('desktop');
+    final fromLabel = sourceDeviceName.isNotEmpty
+        ? 'FROM ${sourceDeviceName.toUpperCase()}'
+        : 'FROM DESKTOP';
     final isFavorite = (row['is_favorite'] as int?) == 1;
     final isPinned = (row['is_pinned'] as int?) == 1;
     final badge = _badge(type);
@@ -383,8 +464,13 @@ class _ClipRow extends StatelessWidget {
                         const SizedBox(width: 6),
                         Icon(Icons.monitor_outlined, size: 10, color: ClippyTokens.accent),
                         const SizedBox(width: 2),
-                        Text('FROM DESKTOP',
-                            style: TextStyle(color: ClippyTokens.accent, fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
+                        Flexible(
+                          child: Text(
+                            fromLabel,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: ClippyTokens.accent, fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 0.4),
+                          ),
+                        ),
                       ],
                       if (isFavorite) ...[
                         const SizedBox(width: 6),
