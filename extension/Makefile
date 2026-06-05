@@ -15,7 +15,7 @@ uninstall:
 
 pack:
 	@rm -f clippy.zip
-	zip clippy.zip metadata.json extension.js stylesheet.css README.md icons/clippy-symbolic.svg
+	zip clippy.zip metadata.json extension.js stylesheet.css README.md icons/clippy-symbolic.png
 	@echo "Packed → $(CURDIR)/clippy.zip"
 
 lint:
