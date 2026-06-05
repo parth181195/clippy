@@ -294,6 +294,17 @@ class SyncConnection {
     ));
   }
 
+  Future<void> sendUnpair() async {
+    if (state != ConnState.connected) return;
+    await _send(Envelope(
+      type: 'UNPAIR',
+      id: newUuidV4(),
+      ts: DateTime.now().millisecondsSinceEpoch,
+      plugin: 'core',
+      payload: {},
+    ));
+  }
+
   Future<String?> sendFile({
     required Uint8List bytes,
     required String mime,
@@ -553,7 +564,15 @@ class SyncService extends ChangeNotifier {
   Future<void> unpairDevice(String deviceId) async {
     final i = _connections.indexWhere((c) => c.paired.deviceId == deviceId);
     if (i == -1) return;
-    await _connections[i].suspend();
+    final c = _connections[i];
+    // Best-effort: tell the desktop to forget us before tearing the WS down.
+    // Offline → desktop will reject on next reconnect attempt anyway.
+    if (c.state == ConnState.connected) {
+      try {
+        await c.sendUnpair();
+      } catch (_) {}
+    }
+    await c.suspend();
     _connections.removeAt(i);
     await _writePairings(_connections.map((c) => c.paired).toList());
     notifyListeners();
