@@ -68,8 +68,17 @@ export function relTime(ms: number): string {
   return `${Math.floor(d / 86_400_000)}d`;
 }
 
+export interface SyncTarget {
+  deviceId: string;
+  name: string;
+  isConnected: boolean;
+}
+
 export interface ClipCardActions {
   onSend?: () => void;
+  onSendToDevice?: (deviceId: string) => void;
+  /** Paired-desktop list. When > 1, the context menu shows a "Send to…" submenu. */
+  sendTargets?: SyncTarget[];
   onToggleFavorite?: () => void;
   onTogglePin?: () => void;
   onDelete?: () => void;
@@ -94,6 +103,7 @@ export function ClipCard({
   canSend?: boolean;
   multiSelected?: boolean;
 }) {
+  const sendTargets = actions?.sendTargets;
   const s = SIZES[density];
   const ct = clip.contentType;
   const [clipActions, setClipActions] = useState<ClipActionDto[]>([]);
@@ -217,7 +227,7 @@ export function ClipCard({
               <Menu.Separator className="cm-ctx-sep" />
             </>
           )}
-          {actions.onSend && (
+          {actions.onSend && (!sendTargets || sendTargets.length <= 1) && (
             <Menu.Item
               className="cm-ctx-item"
               disabled={!canSend}
@@ -227,6 +237,32 @@ export function ClipCard({
               <span>Send to phone</span>
               <span className="cm-ctx-kbd">⇧⌃S</span>
             </Menu.Item>
+          )}
+          {actions.onSendToDevice && sendTargets && sendTargets.length > 1 && (
+            <Menu.Sub>
+              <Menu.SubTrigger className="cm-ctx-item">
+                <Send size={13} strokeWidth={2} />
+                <span>Send to…</span>
+              </Menu.SubTrigger>
+              <Menu.Portal>
+                <Menu.SubContent className="cm-ctx" sideOffset={4}>
+                  {sendTargets.map((t) => (
+                    <Menu.Item
+                      key={t.deviceId}
+                      className="cm-ctx-item"
+                      onSelect={() => actions.onSendToDevice!(t.deviceId)}
+                    >
+                      <span style={{
+                        width: 6, height: 6, borderRadius: 3, marginRight: 2,
+                        background: t.isConnected ? '#7CE8B5' : 'var(--cm-text-tertiary)',
+                      }} />
+                      <span>{t.name}</span>
+                      {!t.isConnected && <span className="cm-ctx-kbd">queue</span>}
+                    </Menu.Item>
+                  ))}
+                </Menu.SubContent>
+              </Menu.Portal>
+            </Menu.Sub>
           )}
           {actions.onEdit && ['text','link','code','color','emoji'].includes(ct) && (
             <Menu.Item className="cm-ctx-item" onSelect={actions.onEdit}>

@@ -5,7 +5,9 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 import 'app.dart';
 import 'services/background_service.dart';
 import 'services/db_service.dart';
+import 'services/device_identity.dart';
 import 'services/error_reporting.dart';
+import 'services/outbox_service.dart';
 import 'services/share_receiver.dart';
 import 'services/sync_service.dart';
 import 'services/theme_controller.dart';
@@ -18,6 +20,9 @@ const _kSentryDsn =
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await ErrorReporting.instance.load();
+  // Generate/load this phone's stable ed25519 identity so signed HELLOs work
+  // the first time SyncPool tries to reconnect.
+  await DeviceIdentity.instance.load();
   await SentryFlutter.init(
     (options) {
       options.dsn = const String.fromEnvironment('SENTRY_DSN', defaultValue: _kSentryDsn);
@@ -30,6 +35,8 @@ Future<void> main() async {
 
 Future<void> _bootstrap() async {
   await DbService.instance();
+  // Purge outbox entries older than 24h on every cold start (PRD §9 / M10).
+  OutboxService.instance.purgeStale().catchError((_) => 0);
   await ThemeController.instance.load();
   // Android 13+ requires runtime POST_NOTIFICATIONS permission for any
   // notification to appear, including the foreground service's persistent one.

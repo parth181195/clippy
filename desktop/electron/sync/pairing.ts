@@ -7,6 +7,10 @@ function shortId(): string {
   return randomBytes(4).toString('hex');
 }
 
+/** QRs are valid for this window from generation; desktop enforces it
+ *  authoritatively. Mobile may use the embedded `ts` for an early reject toast. */
+export const PAIRING_QR_TTL_MS = 60 * 1000;
+
 export interface PairingPayload {
   v: number;
   device_id: string;
@@ -15,6 +19,10 @@ export interface PairingPayload {
   port: number;
   psk: string;
   pubkey: string;
+  /** When the QR was generated (epoch ms). `ts + PAIRING_QR_TTL_MS` is the deadline. */
+  ts?: number;
+  /** Unique-per-QR id. Desktop tracks consumed ones to enforce single-use. */
+  qr_id?: string;
 }
 
 /**
@@ -42,18 +50,21 @@ export function pickLanIp(): string {
 
 export function makePairingPayload(opts: {
   deviceName: string;
+  deviceId?: string;
   port: number;
   psk: Uint8Array;
   pubkey: Uint8Array;
 }): PairingPayload {
   return {
     v: 1,
-    device_id: `clippy-desktop-${shortId()}`,
+    device_id: opts.deviceId ?? `clippy-desktop-${shortId()}`,
     name: opts.deviceName || hostname() || 'desktop',
     host: pickLanIp(),
     port: opts.port,
     psk: bytesToB64(opts.psk),
     pubkey: bytesToB64(opts.pubkey),
+    ts: Date.now(),
+    qr_id: randomBytes(16).toString('hex'),
   };
 }
 

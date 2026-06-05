@@ -85,6 +85,8 @@ export const IPC = {
   unpair: 'pair:unpair',
   // File transfer
   sendClipToPeer: 'sync:send-clip',
+  sendClipToDevice: 'sync:send-clip-device',
+  listSyncDevices: 'sync:list-devices',
   // Exclusions
   exclusionsList: 'excl:list',
   exclusionsAdd: 'excl:add',
@@ -137,6 +139,15 @@ export interface ClipActionDto {
 export interface PairingResult {
   qrSvg: string;
   shortCode: string;
+}
+
+export interface SyncDeviceDto {
+  deviceId: string;
+  name: string;
+  isPrimary: boolean;
+  isRevoked: boolean;
+  isConnected: boolean;
+  lastSeen: number;
 }
 
 export interface ListClipsArgs {

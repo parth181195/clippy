@@ -16,6 +16,9 @@ export interface Envelope {
   ts: number;
   plugin: PluginName;
   payload: Record<string, any>;
+  /** Sender identity attached at send time (multi-pair attribution). Optional
+   *  for backward compatibility with v0.1 peers. */
+  from?: { device_id: string; name: string };
 }
 
 export function makeEnvelope(plugin: PluginName, type: string, payload: Record<string, any>): Envelope {
@@ -30,6 +33,8 @@ export const TYPES = {
   CLIP_REQUEST: 'CLIP_REQUEST',
   CLIP_LIST: 'CLIP_LIST',
   SYNC_REQUEST: 'SYNC_REQUEST',
+  // core: best-effort notification that the sender has unpaired (multi-pair).
+  UNPAIR: 'UNPAIR',
   // file_transfer plugin
   FILE_OFFER: 'FILE_OFFER',
   FILE_ACCEPT: 'FILE_ACCEPT',
@@ -37,6 +42,9 @@ export const TYPES = {
   FILE_DONE: 'FILE_DONE',
   FILE_CANCEL: 'FILE_CANCEL',
 } as const;
+
+/** Allowed clock skew for signed HELLO timestamps (see PRD P4). */
+export const HELLO_SKEW_MS = 300 * 1000;
 
 export const FILE_TRANSFER = {
   CHUNK_SIZE: 32 * 1024, // 32 KB raw per chunk; base64 framing ~43 KB

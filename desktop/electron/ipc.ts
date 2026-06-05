@@ -52,11 +52,14 @@ export function registerIpc(opts: {
   onUnpair: () => Promise<void>;
   onPairingState: () => { state: string; deviceName: string | null };
   onSendClipToPeer: (clipId: number) => Promise<string | null>;
+  onSendClipToDevice: (clipId: number, deviceId: string) => Promise<void>;
+  onListSyncDevices: () => Promise<unknown[]>;
   onPickColor: () => Promise<string | null>;
   onSyncTheme: (mode: string, accent: string) => void;
 }): void {
   const { db, onPaste, onPasteMany, onHidePanel, onShowPanel, onTogglePanel, onSettingsSaved,
-    onPairingBegin, onPairingCancel, onUnpair, onPairingState, onSendClipToPeer, onPickColor, onSyncTheme } = opts;
+    onPairingBegin, onPairingCancel, onUnpair, onPairingState, onSendClipToPeer,
+    onSendClipToDevice, onListSyncDevices, onPickColor, onSyncTheme } = opts;
   const raw = db.raw();
 
   ipcMain.handle(IPC.listClips, (_e, args: ListClipsArgs = {}): ClipDto[] => {
@@ -197,6 +200,10 @@ export function registerIpc(opts: {
   ipcMain.handle(IPC.unpair, () => onUnpair());
   ipcMain.handle(IPC.pairingState, () => onPairingState());
   ipcMain.handle(IPC.sendClipToPeer, (_e, clipId: number) => onSendClipToPeer(clipId));
+  ipcMain.handle(IPC.sendClipToDevice, (_e, clipId: number, deviceId: string) =>
+    onSendClipToDevice(clipId, deviceId)
+  );
+  ipcMain.handle(IPC.listSyncDevices, () => onListSyncDevices());
 
   ipcMain.handle(IPC.exclusionsList, (): string[] =>
     (raw.prepare('SELECT app_id FROM excluded_apps ORDER BY app_id').all() as Array<{ app_id: string }>)

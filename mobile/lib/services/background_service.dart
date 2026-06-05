@@ -9,8 +9,10 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/status.dart' as ws_status;
+import 'package:sodium_libs/sodium_libs.dart' show SodiumInit;
 import 'crypto_service.dart';
 import 'db_service.dart';
+import 'device_identity.dart';
 import 'envelope.dart';
 import 'sync_service.dart' show PairingPayload;
 
@@ -115,6 +117,16 @@ class _BgSyncLoop {
   Future<void> reconnect() async {
     await _channel?.sink.close(ws_status.normalClosure);
     _channel = null;
+    // Reload from storage in case the fg re-paired while we were idle —
+    // otherwise we'd reconnect with a stale PSK and the desktop would reject.
+    final raw = await _storage.read(key: 'pairing');
+    if (raw != null) {
+      _paired = PairingPayload.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+      _psk = base64Decode(_paired!.psk);
+    } else {
+      _paired = null;
+      _psk = null;
+    }
     await _connect();
   }
 
@@ -125,7 +137,11 @@ class _BgSyncLoop {
     setNotif('Clippy sync', 'Connecting to ${_paired!.name}…');
     IOWebSocketChannel? ch;
     try {
-      ch = IOWebSocketChannel.connect(Uri.parse('ws://${_paired!.host}:${_paired!.port}'));
+      ch = IOWebSocketChannel.connect(
+        Uri.parse('ws://${_paired!.host}:${_paired!.port}'),
+        pingInterval: const Duration(seconds: 15),
+        connectTimeout: const Duration(seconds: 5),
+      );
       _channel = ch;
       ch.sink.done.catchError((_) {});
       ch.stream.listen(
@@ -134,16 +150,32 @@ class _BgSyncLoop {
         onError: (_) => _onDisconnect(ch!),
         cancelOnError: true,
       );
+      // Share identity with the fg isolate: same device_id + signing key so
+      // the desktop sees one device, not two. The bg isolate has its own
+      // memory, so DeviceIdentity.load() reads the secure-storage values that
+      // the fg isolate wrote.
+      await DeviceIdentity.instance.load();
+      final id = DeviceIdentity.instance;
+      final sodium = await SodiumInit.init();
+      final nonce = sodium.randombytes.buf(16);
+      final nonceB64 = base64Encode(nonce);
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      final sigMaterial = utf8.encode('${id.deviceId}|$ts|$nonceB64');
+      final sig = await id.sign(Uint8List.fromList(sigMaterial));
       await _send(Envelope(
         type: 'HELLO',
         id: newUuidV4(),
-        ts: DateTime.now().millisecondsSinceEpoch,
+        ts: ts,
         plugin: 'core',
         payload: {
-          'device_id': 'clippy-phone-bg',
-          'name': '${await _phoneName()} (bg)',
+          'device_id': id.deviceId,
+          'name': await _phoneName(),
           'version': '0.1.0',
+          'pubkey': base64Encode(id.publicKey),
+          'nonce': nonceB64,
+          'signature': base64Encode(sig),
         },
+        from: {'device_id': id.deviceId, 'name': await _phoneName()},
       ));
       setNotif('Clippy sync', 'Paired with ${_paired!.name}');
     } catch (e) {
