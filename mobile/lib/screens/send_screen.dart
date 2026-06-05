@@ -39,10 +39,11 @@ class _SendScreenState extends State<SendScreen> {
     if (text.isEmpty) return;
     setState(() => _sending = true);
     try {
+      final wasConnected = SyncService.instance.state == ConnState.connected;
       await SyncService.instance.sendText(text);
       _ctrl.clear();
       if (!mounted) return;
-      _toast('Sent to desktop');
+      _toast(wasConnected ? 'Sent to desktop' : 'Queued — will send when online');
     } catch (e) {
       if (mounted) _toast('Failed: $e');
     } finally {
@@ -87,6 +88,9 @@ class _SendScreenState extends State<SendScreen> {
   Widget build(BuildContext context) {
     final svc = SyncService.instance;
     final connected = svc.state == ConnState.connected;
+    // Text Send works offline (enqueues to outbox) as long as at least one
+    // desktop is paired — files/images still need a live link.
+    final hasPaired = svc.state != ConnState.unpaired;
     final transfers = svc.transfers.values.toList().reversed.toList();
     final chars = _ctrl.text.length;
 
@@ -101,7 +105,7 @@ class _SendScreenState extends State<SendScreen> {
             children: [
               _destinationCard(svc, connected),
               const SizedBox(height: 14),
-              _composerCard(connected, chars),
+              _composerCard(connected, hasPaired, chars),
               const SizedBox(height: 22),
               Row(
                 children: [
@@ -159,7 +163,7 @@ class _SendScreenState extends State<SendScreen> {
     );
   }
 
-  Widget _composerCard(bool connected, int chars) {
+  Widget _composerCard(bool connected, bool hasPaired, int chars) {
     return Container(
       decoration: BoxDecoration(
         color: ClippyTokens.surfaceDark,
@@ -192,7 +196,7 @@ class _SendScreenState extends State<SendScreen> {
               Text('$chars chars', style: TextStyle(color: ClippyTokens.textTerDark, fontSize: 10.5, fontFamily: 'monospace')),
               const SizedBox(width: 10),
               FilledButton(
-                onPressed: connected && !_sending && chars > 0 ? _send : null,
+                onPressed: hasPaired && !_sending && chars > 0 ? _send : null,
                 style: FilledButton.styleFrom(
                   backgroundColor: ClippyTokens.accent,
                   padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),

@@ -135,6 +135,12 @@ class SyncConnection {
         onError: (_) => _onDisconnect(ch!),
         cancelOnError: true,
       );
+      // Wait for the actual TCP/WS handshake to succeed before declaring
+      // ourselves connected. Without this the channel object exists optimistically
+      // and `state = connected` flashes on screen even when the desktop is down —
+      // which corrupts gating decisions ("am I online? → yes → send live")
+      // and lets writes silently disappear into a soon-to-die socket.
+      await ch.ready;
       await _send(await _buildHello());
       state = ConnState.connected;
       _retryAttempt = 0;
@@ -207,7 +213,12 @@ class SyncConnection {
   }
 
   Future<void> _send(Envelope env) async {
-    if (_channel == null) return;
+    if (_channel == null) {
+      // Throw so callers (e.g., outbox flush) don't silently delete the entry
+      // when the WS is no longer alive — they will catch and leave it queued
+      // for the next reconnect.
+      throw StateError('no channel');
+    }
     // Stamp the sender on every outbound envelope so the receiver can attribute
     // clips to this phone (CLIP_NEW writes source_device_id on the desktop).
     // HELLO already sets `from` itself; leave it untouched if present.
@@ -552,8 +563,15 @@ class SyncService extends ChangeNotifier {
     for (final c in _connections) {
       if (c.state == ConnState.connected) {
         await c.sendText(text);
+      } else {
+        // Queue for offline paired desktops; flushed on reconnect.
+        await OutboxService.instance.enqueueText(
+          targetDeviceId: c.paired.deviceId,
+          text: text,
+        );
       }
     }
+    notifyListeners();
   }
 
   Future<void> requestSync() async {

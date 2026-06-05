@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../app.dart' show ScreenHeader;
 import '../services/device_identity.dart';
+import '../services/outbox_service.dart';
 import '../services/sync_service.dart';
 import '../theme.dart';
 
@@ -155,6 +156,11 @@ class DiagnosticsScreen extends StatelessWidget {
                           _kv('device_id', c.deviceId),
                           _kv('host', '${c.paired.host}:${c.paired.port}'),
                           _kv('active transfers', '${c.transfers.length}'),
+                          FutureBuilder<int>(
+                            future: OutboxService.instance.countForDevice(c.deviceId),
+                            builder: (_, snap) =>
+                                _kv('outbox queued', '${snap.data ?? '…'}'),
+                          ),
                         ],
                       ),
                     ),
