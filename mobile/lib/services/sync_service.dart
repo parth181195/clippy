@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:web_socket_channel/io.dart';
@@ -112,10 +113,23 @@ class SyncConnection {
     _connecting = true;
     state = ConnState.connecting;
     onStateChange();
-    // Reconnect immediately on network changes (bypasses exp-backoff wait).
+    // React immediately to OS-level connectivity changes — the WS ping/pong
+    // alone is slow (15s+ to notice a half-open socket on wifi loss). When
+    // the OS tells us we're offline, kill the dead channel proactively;
+    // when we're back online, fire a reconnect bypassing the backoff wait.
     _connSub ??= Connectivity().onConnectivityChanged.listen((results) {
       final hasNet = results.any((r) => r != ConnectivityResult.none);
-      if (hasNet && state != ConnState.connected && !_connecting) {
+      if (!hasNet) {
+        if (_channel != null) {
+          debugPrint('[clippy] (${paired.name}) network gone → drop socket');
+          try { _channel!.sink.close(ws_status.normalClosure); } catch (_) {}
+          _channel = null;
+          if (state != ConnState.disconnected) {
+            state = ConnState.disconnected;
+            onStateChange();
+          }
+        }
+      } else if (state != ConnState.connected && !_connecting) {
         debugPrint('[clippy] (${paired.name}) network back → reconnect');
         _retryAttempt = 0;
         _retryTimer?.cancel();
@@ -124,7 +138,18 @@ class SyncConnection {
     });
     IOWebSocketChannel? ch;
     try {
-      ch = IOWebSocketChannel.connect(Uri.parse('ws://${paired.host}:${paired.port}'));
+      ch = IOWebSocketChannel.connect(
+        Uri.parse('ws://${paired.host}:${paired.port}'),
+        // Keep the WS alive AND detect half-open TCP within ~30s — without this
+        // a wifi flip leaves the socket "connected" on the phone but dead on
+        // the desktop until the kernel keepalive (2h default) eventually
+        // notices.
+        pingInterval: const Duration(seconds: 15),
+        // Without this, each reconnect attempt blocks for the OS TCP connect
+        // timeout (often 30–120 s), so the phone appears "connecting" forever
+        // when the desktop is unreachable.
+        connectTimeout: const Duration(seconds: 5),
+      );
       _channel = ch;
       // Swallow the sink's done-future error so connection-refused doesn't
       // become an unhandled exception.
@@ -543,6 +568,9 @@ class SyncService extends ChangeNotifier {
     }
     final list = _connections.map((c) => c.paired).toList()..add(p);
     await _writePairings(list);
+    // Tell the bg isolate to reload from storage — its in-memory PSK is stale
+    // and any reconnect would otherwise fail signature/decrypt.
+    try { FlutterBackgroundService().invoke('reconnect'); } catch (_) {}
     final c = _buildConnection(p);
     _connections.add(c);
     notifyListeners();
