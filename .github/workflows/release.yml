@@ -26,7 +26,9 @@ permissions:
 
 env:
   NODE_VERSION: '20'
-  FLUTTER_VERSION: '3.32.4'
+  # Must include Dart >= 3.11 (mobile/pubspec.yaml). Flutter 3.44.x is the
+  # first stable line that ships Dart 3.11+.
+  FLUTTER_VERSION: '3.44.1'
 
 jobs:
   # 1. Cut a draft release so the parallel build jobs have somewhere to upload.
@@ -92,7 +94,21 @@ jobs:
           # Don't auto-publish — we upload via gh CLI after build so the same
           # script works on every OS without per-target plumbing.
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-        run: npm run package
+        # Electron-builder fetches platform-specific electron zips + nsis
+        # resources from the GitHub release CDN; that occasionally 504s.
+        # Three attempts with 30 s backoff makes the workflow resilient to
+        # transient infra hiccups without masking real failures.
+        shell: bash
+        run: |
+          for i in 1 2 3; do
+            if npm run package; then
+              exit 0
+            fi
+            echo "::warning::Package attempt $i failed; sleeping 30 s before retry."
+            sleep 30
+          done
+          echo "::error::Package failed after 3 attempts."
+          exit 1
 
       - name: Upload to release
         env:
