@@ -1,0 +1,182 @@
+name: Release
+
+# Fires when a v* tag is pushed. Builds Clippy on Linux, macOS, Windows, and
+# Android in parallel, attaches every artifact to a draft GitHub Release,
+# then flips the release to non-draft once all four succeed.
+#
+# To ship a version:
+#   git tag v0.3.0 && git push origin v0.3.0
+#
+# Required secrets (see docs/cross-platform-support-prd.md §6.1):
+#   ANDROID_KEYSTORE_BASE64  – base64 of mobile/android/app/clippy-release.jks
+#   ANDROID_KEY_PROPERTIES   – verbatim contents of mobile/android/key.properties
+#
+# No Mac/Win signing yet — that lands in #5 / #6. The DMG and EXE on this
+# release will show Gatekeeper / SmartScreen warnings on first launch; the
+# landing page documents the workaround.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write   # gh release create + upload
+  actions: read
+
+env:
+  NODE_VERSION: '20'
+  FLUTTER_VERSION: '3.32.4'
+
+jobs:
+  # 1. Cut a draft release so the parallel build jobs have somewhere to upload.
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: tag
+        run: echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "${{ steps.tag.outputs.tag }}" >/dev/null 2>&1; then
+            echo "Release already exists; reusing."
+          else
+            gh release create "${{ steps.tag.outputs.tag }}" \
+              --draft \
+              --title "${{ steps.tag.outputs.tag }}" \
+              --generate-notes
+          fi
+
+  # 2. Desktop builds — same shape across Linux / Mac / Win, only the runner
+  #    and the upload glob change.
+  desktop:
+    needs: create-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_glob: 'desktop/release/*.deb'
+            label: linux
+          - os: macos-latest
+            artifact_glob: 'desktop/release/*.dmg'
+            label: mac
+          - os: windows-latest
+            # NSIS produces "${productName} Setup ${version}.exe" by default —
+            # match the productName casing electron-builder uses.
+            artifact_glob: 'desktop/release/*.exe'
+            label: win
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: npm ci
+        working-directory: desktop
+        run: npm ci
+
+      - name: Package
+        working-directory: desktop
+        env:
+          # Don't auto-publish — we upload via gh CLI after build so the same
+          # script works on every OS without per-target plumbing.
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npm run package
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.create-release.outputs.tag }}
+          GLOB: ${{ matrix.artifact_glob }}
+        shell: bash
+        run: |
+          shopt -s nullglob
+          files=( $GLOB )
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No artifacts matched $GLOB" >&2
+            ls -la desktop/release || true
+            exit 1
+          fi
+          gh release upload "$TAG" "${files[@]}" --clobber
+
+  # 3. Android — Flutter build, signed with the same release key v0.2.0 used so
+  #    in-place upgrades from earlier versions keep their app data.
+  android:
+    needs: create-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Restore Android signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEY_PROPERTIES: ${{ secrets.ANDROID_KEY_PROPERTIES }}
+        working-directory: mobile
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEY_PROPERTIES" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 and ANDROID_KEY_PROPERTIES secrets are required."
+            echo "::error::Set them with:  gh secret set ANDROID_KEYSTORE_BASE64 < <(base64 mobile/android/app/clippy-release.jks)"
+            echo "::error::                gh secret set ANDROID_KEY_PROPERTIES --body-file mobile/android/key.properties"
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/clippy-release.jks
+          printf '%s' "$KEY_PROPERTIES" > android/key.properties
+
+      - name: flutter pub get
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Build APK
+        working-directory: mobile
+        run: flutter build apk --release
+
+      - name: Rename APK to public name
+        working-directory: mobile
+        env:
+          TAG: ${{ needs.create-release.outputs.tag }}
+        run: |
+          VERSION="${TAG#v}"
+          mv build/app/outputs/flutter-apk/app-release.apk \
+             "build/app/outputs/flutter-apk/clippy-${VERSION}.apk"
+
+      - name: Upload to release
+        working-directory: mobile
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.create-release.outputs.tag }}
+        run: |
+          gh release upload "$TAG" build/app/outputs/flutter-apk/clippy-*.apk --clobber
+
+  # 4. All four artifacts uploaded → flip the release out of draft.
+  publish:
+    needs: [create-release, desktop, android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.create-release.outputs.tag }}
+        run: |
+          gh release edit "$TAG" --draft=false
