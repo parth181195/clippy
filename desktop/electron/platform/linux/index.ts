@@ -22,6 +22,12 @@ import { ensureGnomeExtension } from './gnome-extension';
 import { installAutostart } from './autostart';
 
 export const LinuxAdapter: PlatformAdapter = {
+  defaultHotkeys: {
+    panel: 'Ctrl+Alt+Shift+V',
+    pasteLast: 'Ctrl+Alt+V',
+    incognito: 'Ctrl+Shift+I',
+  },
+
   paste(content, mime, shiftForTerminal) {
     return pasteToActive(content, mime, shiftForTerminal);
   },

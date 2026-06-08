@@ -87,6 +87,23 @@
       "category": "Utility",
       "icon": "assets/icons",
       "executableArgs": ["--no-sandbox"]
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["universal"]
+        }
+      ],
+      "icon": "assets/icons/icon.png",
+      "category": "public.app-category.productivity",
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "extendInfo": {
+        "LSUIElement": true,
+        "NSAppleEventsUsageDescription": "Clippy uses System Events to paste your selected clip into the active app."
+      }
     }
   }
 }

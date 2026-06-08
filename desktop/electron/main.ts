@@ -43,9 +43,9 @@ function loadSettingsFromDb() {
     windowTransparent:
       (map.get('window_transparent') ?? String(DEFAULT_SETTINGS.windowTransparent)) === 'true',
     autostart: (map.get('autostart') ?? String(DEFAULT_SETTINGS.autostart)) === 'true',
-    hotkeyPanel: map.get('hotkey_panel') ?? DEFAULT_SETTINGS.hotkeyPanel,
-    hotkeyPasteLast: map.get('hotkey_paste_last') ?? DEFAULT_SETTINGS.hotkeyPasteLast,
-    hotkeyIncognito: map.get('hotkey_incognito') ?? DEFAULT_SETTINGS.hotkeyIncognito,
+    hotkeyPanel: map.get('hotkey_panel') ?? platform.defaultHotkeys.panel,
+    hotkeyPasteLast: map.get('hotkey_paste_last') ?? platform.defaultHotkeys.pasteLast,
+    hotkeyIncognito: map.get('hotkey_incognito') ?? platform.defaultHotkeys.incognito,
     historySize: parseInt(map.get('history_size') ?? '', 10) || DEFAULT_SETTINGS.historySize,
     pollingMs: parseInt(map.get('polling_ms') ?? '', 10) || DEFAULT_SETTINGS.pollingMs,
     soundOnCopy: (map.get('sound_on_copy') ?? String(DEFAULT_SETTINGS.soundOnCopy)) === 'true',
@@ -309,10 +309,11 @@ app.whenReady().then(() => {
 
   if (settings.autostart) platform.installAutostart();
   createWindow();
-  // Linux: the GNOME shell extension is our canonical panel presence — the
-  // Electron Tray would show up as a duplicate (and renders oddly via SNI on
-  // GNOME Wayland), so we don't create one. Mac/Win adapters will create one
-  // when they land (#2/#3).
+  // Linux skips the Electron Tray — the GNOME shell extension is our
+  // canonical panel presence, and a Tray would duplicate it (also renders
+  // oddly via SNI on GNOME Wayland). Mac + Win own their menu-bar/tray
+  // presence directly, so they create one.
+  if (process.platform !== 'linux') createTray();
 
   // Wire clipboard polling pipeline
   const excludedApps = (

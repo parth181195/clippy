@@ -1,0 +1,116 @@
+---
+import Button from './Button.astro';
+import Icon from './Icon.astro';
+
+const specs = [
+  ['macOS', '12 Monterey · 13 Ventura · 14 Sonoma · 15 Sequoia'],
+  ['Architecture', 'Apple Silicon + Intel (universal)'],
+  ['Integration', 'Menu-bar item + ⌘⇧V hotkey'],
+  ['Stack', 'Electron + better-sqlite3'],
+  ['Install', '.dmg (~85 MB)'],
+  ['License', 'GPLv3'],
+];
+const term = [
+  { p: '→', t: 'mount Clippy-0.3.0-universal.dmg', cmd: true },
+  { t: 'Volume "Clippy" mounted to /Volumes/Clippy', dim: true },
+  { t: 'Drag Clippy.app to /Applications', txt: true },
+  { t: '✓ App installed', ok: true },
+  { p: '→', t: 'open /Applications/Clippy.app', cmd: true },
+  { t: 'macOS: "Clippy" can’t be opened — unidentified developer', orange: true },
+  { t: '↪ right-click → Open → Open (one time)', dim: true },
+  { t: '✓ Clippy is running in the menu bar', ok: true },
+  { t: 'Grant Accessibility on first ⌘⇧V to enable paste-last', dim: true },
+];
+---
+<section class="mac">
+  <div class="glow"></div>
+  <div class="wrap inner grid-2">
+    <div>
+      <div class="pill"><Icon name="puzzle" size={14} /> Built for macOS</div>
+      <h2>A menu-bar citizen,<br /><span class="silver">not a tab on a tab.</span></h2>
+      <p class="body">
+        Clippy lives in the menu bar — no Dock icon, no window chrome competing with your real work.
+        Cmd+Shift+V opens the panel, Cmd+Alt+V types your last clip into whatever app you were just
+        in, and the sync layer talks LAN-only to your phone. Universal binary — runs native on
+        Apple Silicon AND Intel.
+      </p>
+
+      <div class="specs">
+        {specs.map(([k, v]) => (
+          <div class="spec">
+            <span class="sk mono">{k}</span>
+            <span class="sv mono">{v}</span>
+          </div>
+        ))}
+      </div>
+
+      <div class="dl">
+        <Button primary href="#download"><Icon name="download" size={14} /> Get the .dmg</Button>
+        <code class="cmd mono"><span class="dollar">→</span> drag to /Applications then right-click → Open <Icon name="copy" size={13} class="ic" /></code>
+      </div>
+
+      <div class="note">
+        <strong>First-run note:</strong> Because the beta build isn't yet signed with an Apple
+        Developer ID, macOS will refuse the first launch with "unidentified developer". Right-click
+        the app icon and choose <em>Open</em> once — after that it launches normally. Signing lands
+        in the next release.
+      </div>
+    </div>
+
+    <div class="terminal">
+      <div class="t-bar">
+        <span class="t-title">clippy — install — zsh</span>
+        <div class="t-dots"><span></span><span></span><span></span></div>
+      </div>
+      <div class="t-body mono">
+        {term.map((l) => (
+          <div class:list={['t-line', { ok: l.ok, dim: l.dim, orange: l.orange, txt: l.txt }]}>
+            {l.p && <span class="t-prompt">helios ~ <span class="dollar">{l.p}</span> </span>}{l.t}
+          </div>
+        ))}
+        <div class="t-line"><span class="t-prompt">helios ~ <span class="dollar">→</span> </span><span class="cursor"></span></div>
+      </div>
+    </div>
+  </div>
+</section>
+<style>
+  .mac { position: relative; overflow: hidden; padding: 140px 40px; }
+  .glow { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 1000px; height: 700px; pointer-events: none; background: radial-gradient(ellipse 50% 40% at 50% 50%, rgba(170, 180, 200, 0.13) 0%, transparent 70%); }
+  .inner { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
+  .pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 100px; background: rgba(170, 180, 200, 0.13); color: #c8d0e0; border: 1px solid rgba(170, 180, 200, 0.27); font-size: 12px; font-weight: 600; margin-bottom: 24px; }
+  h2 { margin: 0; font-size: clamp(36px, 5vw, 56px); font-weight: 700; line-height: 1.05; letter-spacing: -1.2px; }
+  .silver { color: #c8d0e0; font-style: italic; }
+  .body { margin-top: 28px; font-size: 16px; line-height: 1.6; color: var(--text-secondary); }
+  .specs { margin-top: 32px; }
+  .spec { display: grid; grid-template-columns: 150px 1fr; padding: 12px 0; border-top: 1px solid var(--border-subtle); font-size: 13px; }
+  .sk { color: var(--text-tertiary); text-transform: uppercase; font-size: 11px; letter-spacing: 0.6px; align-self: center; }
+  .sv { color: var(--text); }
+  .dl { margin-top: 36px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .cmd { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 8px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); font-size: 13px; color: var(--text-secondary); }
+  .cmd .dollar { color: #c8d0e0; }
+  .cmd .ic { opacity: 0.5; }
+  .note { margin-top: 22px; padding: 12px 16px; border-radius: 10px; background: rgba(170, 180, 200, 0.07); border: 1px solid rgba(170, 180, 200, 0.22); font-size: 13px; line-height: 1.5; color: var(--text-secondary); max-width: 520px; }
+  .note strong { color: var(--text); font-weight: 600; }
+  .note em { color: #c8d0e0; font-style: normal; font-weight: 600; }
+
+  .terminal { background: #0a0a12; border: 1px solid var(--border-subtle); border-radius: 14px; overflow: hidden; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5); }
+  .t-bar { display: flex; align-items: center; padding: 10px 14px; background: rgba(255, 255, 255, 0.02); border-bottom: 1px solid var(--border-subtle); }
+  .t-title { flex: 1; font-size: 11px; color: var(--text-tertiary); font-family: monospace; }
+  .t-dots { display: flex; gap: 6px; }
+  .t-dots span { width: 10px; height: 10px; border-radius: 50%; background: rgba(255, 255, 255, 0.15); }
+  .t-body { padding: 16px 18px; font-size: 12.5px; line-height: 1.65; }
+  .t-line { color: var(--text); }
+  .t-line.dim { color: var(--text-tertiary); }
+  .t-line.ok { color: #7ce8b5; }
+  .t-line.orange { color: #ffb86c; }
+  .t-line.txt { color: var(--text-secondary); }
+  .t-prompt { color: var(--text-tertiary); }
+  .t-prompt .dollar { color: #c8d0e0; }
+  .cursor { display: inline-block; width: 8px; height: 14px; background: var(--text); vertical-align: middle; animation: blink 1s steps(2, end) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  @media (max-width: 900px) {
+    .mac { padding: 80px 20px; }
+    .inner { grid-template-columns: 1fr; gap: 60px; }
+  }
+</style>

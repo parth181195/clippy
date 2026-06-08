@@ -38,6 +38,15 @@ export interface ShellIntegrationHandlers {
 
 export interface PlatformAdapter {
   /**
+   * Per-OS hotkey defaults. Seeded into the settings table on first launch
+   * when no row exists; the user can rebind from the Hotkeys screen after.
+   *
+   * Linux + Win use `Ctrl+Alt+Shift+V`-style chords; Mac uses `Cmd`-based
+   * because that's what Mac users expect for global shortcuts.
+   */
+  defaultHotkeys: ShellHotkeyChords;
+
+  /**
    * Inject text into the previously-focused window as keystrokes.
    * `mime` is needed because terminals want a shifted Ctrl+V for some
    * content and a raw key-by-key type for others.
@@ -87,9 +96,14 @@ export function getPlatformAdapter(): PlatformAdapter {
       _adapter = LinuxAdapter;
       return _adapter;
     }
+    case 'darwin': {
+      const { MacAdapter } = require('./mac') as typeof import('./mac');
+      _adapter = MacAdapter;
+      return _adapter;
+    }
     default:
       throw new Error(
-        `Unsupported platform: ${process.platform}. macOS lands in #2; Windows in #3.`,
+        `Unsupported platform: ${process.platform}. Windows lands in #3.`,
       );
   }
 }
