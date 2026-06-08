@@ -101,9 +101,12 @@ export function getPlatformAdapter(): PlatformAdapter {
       _adapter = MacAdapter;
       return _adapter;
     }
+    case 'win32': {
+      const { WinAdapter } = require('./win') as typeof import('./win');
+      _adapter = WinAdapter;
+      return _adapter;
+    }
     default:
-      throw new Error(
-        `Unsupported platform: ${process.platform}. Windows lands in #3.`,
-      );
+      throw new Error(`Unsupported platform: ${process.platform}.`);
   }
 }

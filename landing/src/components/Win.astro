@@ -1,0 +1,120 @@
+---
+import Button from './Button.astro';
+import Icon from './Icon.astro';
+
+const specs = [
+  ['Windows', '10 · 11'],
+  ['Architecture', 'x64'],
+  ['Integration', 'System tray + Ctrl+Shift+V hotkey'],
+  ['Stack', 'Electron + better-sqlite3'],
+  ['Install', 'NSIS .exe (~85 MB, per-user)'],
+  ['License', 'GPLv3'],
+];
+const term = [
+  { p: '>', t: 'Clippy-Setup-0.3.0.exe', cmd: true },
+  { t: 'Windows protected your PC — unrecognized app', orange: true },
+  { t: '↪ click "More info" → "Run anyway"', dim: true },
+  { t: 'Choose install directory · per-user (no admin)', txt: true },
+  { t: '✓ Installed to %LOCALAPPDATA%\\Programs\\Clippy', ok: true },
+  { p: '>', t: 'start clippy', cmd: true },
+  { t: '✓ Clippy is running in the system tray', ok: true },
+  { t: 'Press Ctrl+Shift+V to open the panel', dim: true },
+];
+---
+<section class="win">
+  <div class="glow"></div>
+  <div class="wrap inner grid-2">
+    <div>
+      <div class="pill"><Icon name="puzzle" size={14} /> Built for Windows 10 + 11</div>
+      <h2>A tray-icon citizen,<br /><span class="azure">no Win+V required.</span></h2>
+      <p class="body">
+        Clippy lives in the system tray and binds <code>Ctrl+Shift+V</code> system-wide.
+        Ctrl+Alt+V types your most-recent clip into whatever app you were in. Installs
+        per-user under your profile — no admin required, no Defender driver, no startup-folder
+        shortcut surprises. Pairs with the same phone over LAN as the Mac and Linux builds.
+      </p>
+
+      <div class="specs">
+        {specs.map(([k, v]) => (
+          <div class="spec">
+            <span class="sk mono">{k}</span>
+            <span class="sv mono">{v}</span>
+          </div>
+        ))}
+      </div>
+
+      <div class="dl">
+        <Button primary href="#download"><Icon name="download" size={14} /> Get the installer</Button>
+        <code class="cmd mono"><span class="dollar">&gt;</span> Clippy-Setup-0.3.0.exe — per-user install <Icon name="copy" size={13} class="ic" /></code>
+      </div>
+
+      <div class="note">
+        <strong>First-run note:</strong> Because the beta installer isn't yet code-signed, Windows
+        SmartScreen will block it on first launch. Click <em>More info</em> then <em>Run anyway</em> —
+        you'll only see the warning once. Signing lands in the next release; reputation will build
+        up with Microsoft over the following weeks.
+        <br />
+        <strong>Known limitation:</strong> Paste-as-keystroke can't inject into UAC-elevated
+        windows (Task Manager, Registry Editor running as admin) — a Windows security boundary,
+        not a Clippy bug.
+      </div>
+    </div>
+
+    <div class="terminal">
+      <div class="t-bar">
+        <span class="t-title">clippy — install — pwsh</span>
+        <div class="t-dots"><span></span><span></span><span></span></div>
+      </div>
+      <div class="t-body mono">
+        {term.map((l) => (
+          <div class:list={['t-line', { ok: l.ok, dim: l.dim, orange: l.orange, txt: l.txt }]}>
+            {l.p && <span class="t-prompt">C:\Users\helios<span class="dollar">{l.p}</span> </span>}{l.t}
+          </div>
+        ))}
+        <div class="t-line"><span class="t-prompt">C:\Users\helios<span class="dollar">&gt;</span> </span><span class="cursor"></span></div>
+      </div>
+    </div>
+  </div>
+</section>
+<style>
+  .win { position: relative; overflow: hidden; padding: 140px 40px; }
+  .glow { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 1000px; height: 700px; pointer-events: none; background: radial-gradient(ellipse 50% 40% at 50% 50%, rgba(0, 120, 212, 0.16) 0%, transparent 70%); }
+  .inner { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
+  .pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 100px; background: rgba(0, 120, 212, 0.13); color: #4cc2ff; border: 1px solid rgba(0, 120, 212, 0.27); font-size: 12px; font-weight: 600; margin-bottom: 24px; }
+  h2 { margin: 0; font-size: clamp(36px, 5vw, 56px); font-weight: 700; line-height: 1.05; letter-spacing: -1.2px; }
+  .azure { color: #4cc2ff; font-style: italic; }
+  .body { margin-top: 28px; font-size: 16px; line-height: 1.6; color: var(--text-secondary); }
+  .body code { padding: 2px 6px; border-radius: 4px; background: rgba(255, 255, 255, 0.05); font-size: 13px; color: var(--text); }
+  .specs { margin-top: 32px; }
+  .spec { display: grid; grid-template-columns: 150px 1fr; padding: 12px 0; border-top: 1px solid var(--border-subtle); font-size: 13px; }
+  .sk { color: var(--text-tertiary); text-transform: uppercase; font-size: 11px; letter-spacing: 0.6px; align-self: center; }
+  .sv { color: var(--text); }
+  .dl { margin-top: 36px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .cmd { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 8px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); font-size: 13px; color: var(--text-secondary); }
+  .cmd .dollar { color: #4cc2ff; }
+  .cmd .ic { opacity: 0.5; }
+  .note { margin-top: 22px; padding: 12px 16px; border-radius: 10px; background: rgba(0, 120, 212, 0.07); border: 1px solid rgba(0, 120, 212, 0.22); font-size: 13px; line-height: 1.55; color: var(--text-secondary); max-width: 540px; }
+  .note strong { color: var(--text); font-weight: 600; }
+  .note em { color: #4cc2ff; font-style: normal; font-weight: 600; }
+
+  .terminal { background: #0a0a12; border: 1px solid var(--border-subtle); border-radius: 14px; overflow: hidden; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5); }
+  .t-bar { display: flex; align-items: center; padding: 10px 14px; background: rgba(255, 255, 255, 0.02); border-bottom: 1px solid var(--border-subtle); }
+  .t-title { flex: 1; font-size: 11px; color: var(--text-tertiary); font-family: monospace; }
+  .t-dots { display: flex; gap: 6px; }
+  .t-dots span { width: 10px; height: 10px; border-radius: 50%; background: rgba(255, 255, 255, 0.15); }
+  .t-body { padding: 16px 18px; font-size: 12.5px; line-height: 1.65; }
+  .t-line { color: var(--text); }
+  .t-line.dim { color: var(--text-tertiary); }
+  .t-line.ok { color: #7ce8b5; }
+  .t-line.orange { color: #ffb86c; }
+  .t-line.txt { color: var(--text-secondary); }
+  .t-prompt { color: var(--text-tertiary); }
+  .t-prompt .dollar { color: #4cc2ff; }
+  .cursor { display: inline-block; width: 8px; height: 14px; background: var(--text); vertical-align: middle; animation: blink 1s steps(2, end) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  @media (max-width: 900px) {
+    .win { padding: 80px 20px; }
+    .inner { grid-template-columns: 1fr; gap: 60px; }
+  }
+</style>

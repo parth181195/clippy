@@ -104,6 +104,23 @@
         "LSUIElement": true,
         "NSAppleEventsUsageDescription": "Clippy uses System Events to paste your selected clip into the active app."
       }
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "assets/icons/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Clippy"
     }
   }
 }
