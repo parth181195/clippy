@@ -89,39 +89,56 @@ jobs:
         run: npm ci
 
       # Mac signing + notarization (#5).
-      # Opt-in: if MAC_CSC_LINK secret is unset the step is a no-op and the
-      # DMG builds unsigned (current v0.3.0 behaviour). When the user adds
-      # the Developer ID cert + Apple ID secrets, the same step flips signing
-      # AND notarization on for the next tag-push.
-      - name: Enable Mac notarize when signing creds present
+      # Opt-in: writes CSC_LINK / CSC_KEY_PASSWORD / APPLE_* to $GITHUB_ENV
+      # only when the corresponding secrets are set, so unsigned builds
+      # don't ship an empty CSC_LINK="" (which electron-builder interprets
+      # as a missing cert file).
+      - name: Configure Mac signing
         if: matrix.label == 'mac' && env.HAS_MAC_CERT == 'true'
         working-directory: desktop
         env:
           HAS_MAC_CERT: ${{ secrets.MAC_CSC_LINK != '' }}
+          MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        shell: bash
         run: |
+          {
+            echo "CSC_LINK=$MAC_CSC_LINK"
+            echo "CSC_KEY_PASSWORD=$MAC_CSC_KEY_PASSWORD"
+            echo "APPLE_ID=$APPLE_ID"
+            echo "APPLE_APP_SPECIFIC_PASSWORD=$APPLE_APP_SPECIFIC_PASSWORD"
+            echo "APPLE_TEAM_ID=$APPLE_TEAM_ID"
+          } >> "$GITHUB_ENV"
           node -e "const f=require('./package.json'); f.build.mac.notarize=true; require('fs').writeFileSync('./package.json', JSON.stringify(f, null, 2));"
           echo "Mac signing + notarize ON for this build."
+
+      # Win signing (#6). Same opt-in pattern: only set the env vars when
+      # the WIN_CSC_LINK secret is non-empty.
+      - name: Configure Win signing
+        if: matrix.label == 'win' && env.HAS_WIN_CERT == 'true'
+        env:
+          HAS_WIN_CERT: ${{ secrets.WIN_CSC_LINK != '' }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          {
+            echo "CSC_LINK=$WIN_CSC_LINK"
+            echo "CSC_KEY_PASSWORD=$WIN_CSC_KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+          echo "Win signing ON for this build."
 
       - name: Package
         working-directory: desktop
         env:
-          # Signing is opt-in per-platform via repo secrets — see #5 (Mac)
-          # and #6 (Win). Empty values = unsigned build (electron-builder
-          # skips signing when CSC_LINK is empty AND CSC_IDENTITY_AUTO_
-          # DISCOVERY is false).
+          # Without an explicit cert (no CSC_LINK from the configure steps
+          # above), electron-builder must skip signing entirely — otherwise
+          # it tries to discover a cert in the keychain (Mac runners do
+          # have anonymous ones) which fails the build.
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-          CSC_LINK: >-
-            ${{ matrix.label == 'mac' && secrets.MAC_CSC_LINK
-                || matrix.label == 'win' && secrets.WIN_CSC_LINK
-                || '' }}
-          CSC_KEY_PASSWORD: >-
-            ${{ matrix.label == 'mac' && secrets.MAC_CSC_KEY_PASSWORD
-                || matrix.label == 'win' && secrets.WIN_CSC_KEY_PASSWORD
-                || '' }}
-          # Apple notarization (only consumed when the Mac sign step ran).
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         # Electron-builder fetches platform-specific electron zips + nsis
         # resources from the GitHub release CDN; that occasionally 504s.
         # Three attempts with 30 s backoff makes the workflow resilient to
