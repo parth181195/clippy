@@ -11,11 +11,11 @@ const specs = [
   ['License', 'GPLv3'],
 ];
 const term = [
-  { p: '$', t: 'sudo apt install ./clippy_0.2.0_amd64.deb', cmd: true },
+  { p: '$', t: 'sudo apt install ./clippy_0.3.0_amd64.deb', cmd: true },
   { t: 'Reading package lists... Done', dim: true },
   { t: 'The following NEW package will be installed:', dim: true },
   { t: '  clippy', txt: true },
-  { t: 'Setting up clippy (0.2.0) ...', orange: true },
+  { t: 'Setting up clippy (0.3.0) ...', orange: true },
   { t: '✓ Desktop entry + autostart installed', ok: true },
   { t: '✓ Launch Clippy, then enable the GNOME extension', ok: true },
   { p: '$', t: 'gnome-extensions enable clippy@io.clippy', cmd: true },
@@ -46,7 +46,7 @@ const term = [
 
       <div class="dl">
         <Button primary href="#download"><Icon name="download" size={14} /> Get the .deb</Button>
-        <code class="cmd mono"><span class="dollar">$</span> sudo apt install ./clippy_0.2.0_amd64.deb <Icon name="copy" size={13} class="ic" /></code>
+        <code class="cmd mono"><span class="dollar">$</span> sudo apt install ./clippy_0.3.0_amd64.deb <Icon name="copy" size={13} class="ic" /></code>
       </div>
     </div>
 
