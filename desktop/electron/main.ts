@@ -1,25 +1,20 @@
 import { app, BrowserWindow, globalShortcut, Tray, Menu, nativeImage } from 'electron';
 import { join } from 'node:path';
-import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { appendFileSync, existsSync } from 'node:fs';
 import { Db } from './db';
 import { registerIpc } from './ipc';
 import { DEFAULT_SETTINGS, IPC, type ContentType } from './ipc-types';
 import { startPolling } from './clipboard-poll';
 import { makeHandler } from './pipeline';
-import { pasteToActive } from './paste';
-import { SoundPlayer } from './sound';
 import { Notifier } from './notifications';
 import { Incognito } from './incognito';
-import { currentFocusedApp, setFocusedAppFromShell } from './focused-app';
-import { startDbusApp } from './dbus-app';
-import { installAll as installGnomeShortcuts } from './gnome-shortcut';
 import { SyncService } from './sync/sync-service';
-import { pickColor } from './color-picker';
 import { initSentryMain, setReportingEnabled } from './sentry';
-import { ensureGnomeExtension } from './gnome-extension';
 import { getDeviceIdentity } from './device-identity';
 import { purgeStale as purgeOutboxStale } from './sync/outbox';
+import { getPlatformAdapter, type SoundPlayer } from './platform';
+
+const platform = getPlatformAdapter();
 
 // Initialize crash/error reporting as early as possible (gated at runtime by
 // the user's `errorReporting` setting once the DB loads).
@@ -160,38 +155,6 @@ function toggleWindow() {
   }
 }
 
-function installAutostart() {
-  const dir = join(homedir(), '.config', 'autostart');
-  mkdirSync(dir, { recursive: true });
-  const file = join(dir, 'clippy.desktop');
-  // electron binary needs the app dir as its first arg; previous version
-  // omitted it which meant the autostart entry silently failed to load
-  // anything. Also pass the Wayland positioning flags so the panel
-  // shows up where we expect.
-  const electronBin = process.argv0;
-  const appDir = app.getAppPath();
-  const iconPath = join(appDir, 'assets', 'icons', 'icon.png');
-  const exec = [
-    electronBin,
-    appDir,
-    '--no-sandbox',
-    '--disable-gpu-sandbox',
-    '--ozone-platform-hint=x11',
-    '--hidden',
-  ].map((a) => (a.includes(' ') ? `"${a}"` : a)).join(' ');
-  const content = `[Desktop Entry]
-Type=Application
-Name=Clippy
-Comment=LAN clipboard manager
-Exec=${exec}
-Icon=${iconPath}
-X-GNOME-Autostart-enabled=true
-Terminal=false
-NoDisplay=false
-`;
-  writeFileSync(file, content, { mode: 0o644 });
-}
-
 function createTray() {
   const iconPath = join(process.cwd(), 'assets', 'icons', 'tray.png');
   const icon = existsSync(iconPath)
@@ -234,7 +197,7 @@ async function pasteManyById(ids: number[], shiftForTerminal: boolean): Promise<
   if (parts.length === 0) return;
   mainWindow?.hide();
   await new Promise((r) => setTimeout(r, 50));
-  await pasteToActive(Buffer.from(parts.join('\n'), 'utf8'), 'text/plain', shiftForTerminal);
+  await platform.paste(Buffer.from(parts.join('\n'), 'utf8'), 'text/plain', shiftForTerminal);
 }
 
 async function pasteById(id: number, shiftForTerminal: boolean): Promise<void> {
@@ -247,14 +210,14 @@ async function pasteById(id: number, shiftForTerminal: boolean): Promise<void> {
   // Hide window so the synthesised Ctrl+V lands in the previously-focused app.
   mainWindow?.hide();
   await new Promise((r) => setTimeout(r, 50));
-  await pasteToActive(row.content, row.mime, shiftForTerminal);
+  await platform.paste(row.content, row.mime, shiftForTerminal);
 }
 
 // Launch the system screen color picker, store the result as a color clip,
 // and notify the renderer. Returns the picked hex or null.
 async function doPickColor(): Promise<string | null> {
   if (!db) return null;
-  const hex = await pickColor();
+  const hex = await platform.pickColor();
   if (!hex) return null;
   const { id, wasNew } = db.insertClip(
     'color',
@@ -268,7 +231,7 @@ async function doPickColor(): Promise<string | null> {
     db.raw().prepare('UPDATE clips SET created_at = ? WHERE id = ?').run(Date.now(), id);
   }
   mainWindow?.webContents.send(IPC.EVT_CLIP_NEW, id);
-  sound?.playCopy();
+  sound?.play();
   return hex;
 }
 
@@ -283,7 +246,7 @@ app.whenReady().then(() => {
   // Drop outbox entries older than 24 h on every cold start (PRD §9 / D8).
   try { purgeOutboxStale(db); } catch (e) { console.warn('outbox purge failed', e); }
 
-  sound = new SoundPlayer(settings.soundOnCopy);
+  sound = platform.createSoundPlayer(settings.soundOnCopy);
   notifier = new Notifier(settings.notificationsOnCopy);
 
   incognito = new Incognito(settings.incognitoAutoDisableSecs, (on) => {
@@ -316,7 +279,7 @@ app.whenReady().then(() => {
     onShowPanel: () => { mainWindow?.show(); mainWindow?.focus(); },
     onTogglePanel: toggleWindow,
     onSettingsSaved: (next) => {
-      installGnomeShortcuts({
+      platform.reinstallShellHotkeys?.({
         panel: next.hotkeyPanel,
         pasteLast: next.hotkeyPasteLast,
         incognito: next.hotkeyIncognito,
@@ -344,16 +307,12 @@ app.whenReady().then(() => {
     onSyncTheme: (mode, accent) => { void syncService?.sendTheme(mode, accent); },
   });
 
-  if (settings.autostart) installAutostart();
+  if (settings.autostart) platform.installAutostart();
   createWindow();
-  // The GNOME shell extension below is our canonical panel presence — the
+  // Linux: the GNOME shell extension is our canonical panel presence — the
   // Electron Tray would show up as a duplicate (and renders oddly via SNI on
-  // GNOME Wayland), so we don't create one.
-
-  // One-install GNOME integration: drop the bundled extension into the user's
-  // extensions dir and enable it live (Extension-Manager style); notify only if
-  // that can't be done automatically.
-  ensureGnomeExtension().catch((e) => console.warn('gnome-ext setup failed', e));
+  // GNOME Wayland), so we don't create one. Mac/Win adapters will create one
+  // when they land (#2/#3).
 
   // Wire clipboard polling pipeline
   const excludedApps = (
@@ -363,9 +322,9 @@ app.whenReady().then(() => {
     db,
     excludedApps,
     historySize: settings.historySize,
-    getFocusedApp: currentFocusedApp,
+    getFocusedApp: () => platform.getFocusedApp(),
     onNewClip: (id, ct) => {
-      sound?.playCopy();
+      sound?.play();
       const row = db!
         .raw()
         .prepare('SELECT preview FROM clips WHERE id = ?')
@@ -410,22 +369,25 @@ app.whenReady().then(() => {
     logHk('incognito: ' + (on ? 'ON' : 'OFF'));
   }, 'incognito');
 
-  // Expose io.clippy.App on the session bus so gdbus can drive the panel.
-  // Reliable Wayland hotkey path: a GNOME custom-keybinding that calls our
-  // D-Bus method (Mutter's portal-based global shortcuts are silently dropped).
-  void startDbusApp({
+  // Shell integration:
+  //  - Linux: exposes io.clippy.App on the session bus so the GNOME extension's
+  //    custom-keybindings can drive the panel (Mutter's portal-based global
+  //    shortcuts are silently dropped on Wayland), then auto-installs the
+  //    bundled extension. The adapter handles setFocusedAppFromShell internally.
+  //  - Mac/Win: no-op (Electron globalShortcut covers the same ground).
+  void platform.initShellIntegration?.({
     onToggle: () => toggleWindow(),
     onShow: () => { mainWindow?.show(); mainWindow?.focus(); },
     onHide: () => mainWindow?.hide(),
     onPasteLast: () => doPasteLast(),
     onToggleIncognito: () => incognito?.toggle(),
-    onSetFocusedApp: (appId) => setFocusedAppFromShell(appId),
+    onSetFocusedApp: () => {},
     onPickColor: () => { void doPickColor(); },
   });
-  // Install / refresh all GNOME custom keybindings so user's hotkeys actually
-  // fire on Wayland. Idempotent on every startup, and re-called from the
-  // saveSettings IPC handler when the user changes a chord.
-  installGnomeShortcuts({
+  // Install / refresh OS-level hotkey bindings. Linux writes GNOME custom-
+  // keybindings (idempotent on every startup, also re-called from the
+  // saveSettings IPC handler when the user changes a chord). Mac/Win: no-op.
+  platform.reinstallShellHotkeys?.({
     panel: settings.hotkeyPanel,
     pasteLast: settings.hotkeyPasteLast,
     incognito: settings.hotkeyIncognito,
