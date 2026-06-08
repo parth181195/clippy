@@ -88,12 +88,40 @@ jobs:
         working-directory: desktop
         run: npm ci
 
+      # Mac signing + notarization (#5).
+      # Opt-in: if MAC_CSC_LINK secret is unset the step is a no-op and the
+      # DMG builds unsigned (current v0.3.0 behaviour). When the user adds
+      # the Developer ID cert + Apple ID secrets, the same step flips signing
+      # AND notarization on for the next tag-push.
+      - name: Enable Mac notarize when signing creds present
+        if: matrix.label == 'mac' && env.HAS_MAC_CERT == 'true'
+        working-directory: desktop
+        env:
+          HAS_MAC_CERT: ${{ secrets.MAC_CSC_LINK != '' }}
+        run: |
+          node -e "const f=require('./package.json'); f.build.mac.notarize=true; require('fs').writeFileSync('./package.json', JSON.stringify(f, null, 2));"
+          echo "Mac signing + notarize ON for this build."
+
       - name: Package
         working-directory: desktop
         env:
-          # Don't auto-publish — we upload via gh CLI after build so the same
-          # script works on every OS without per-target plumbing.
+          # Signing is opt-in per-platform via repo secrets — see #5 (Mac)
+          # and #6 (Win). Empty values = unsigned build (electron-builder
+          # skips signing when CSC_LINK is empty AND CSC_IDENTITY_AUTO_
+          # DISCOVERY is false).
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          CSC_LINK: >-
+            ${{ matrix.label == 'mac' && secrets.MAC_CSC_LINK
+                || matrix.label == 'win' && secrets.WIN_CSC_LINK
+                || '' }}
+          CSC_KEY_PASSWORD: >-
+            ${{ matrix.label == 'mac' && secrets.MAC_CSC_KEY_PASSWORD
+                || matrix.label == 'win' && secrets.WIN_CSC_KEY_PASSWORD
+                || '' }}
+          # Apple notarization (only consumed when the Mac sign step ran).
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         # Electron-builder fetches platform-specific electron zips + nsis
         # resources from the GitHub release CDN; that occasionally 504s.
         # Three attempts with 30 s backoff makes the workflow resilient to

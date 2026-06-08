@@ -58,7 +58,36 @@ gh secret set ANDROID_KEYSTORE_BASE64 < <(base64 mobile/android/app/clippy-relea
 gh secret set ANDROID_KEY_PROPERTIES --body-file mobile/android/key.properties
 ```
 
-Mac and Windows builds are unsigned until [#5](https://github.com/parth181195/clippy/issues/5) / [#6](https://github.com/parth181195/clippy/issues/6) — first-launch Gatekeeper / SmartScreen warnings are expected; the landing page documents the workaround.
+### Mac + Windows code signing (optional, opt-in)
+
+Mac and Windows builds default to **unsigned** — first-launch Gatekeeper / SmartScreen warnings are expected and the landing page documents the workaround. To produce signed builds, add the secrets below; the workflow flips signing on for the next tag-push.
+
+**macOS** — Apple Developer Program enrollment ($99/yr). After enrolling:
+
+1. Create a **Developer ID Application** certificate in the Apple Developer portal, export the `.p12` (set a strong password).
+2. Generate an [app-specific password](https://appleid.apple.com) for your Apple ID.
+3. Note your **Team ID** (10 chars, top-right of the Apple Developer portal).
+
+```bash
+gh secret set MAC_CSC_LINK < <(base64 path/to/developer-id-application.p12)
+gh secret set MAC_CSC_KEY_PASSWORD --body 'your-p12-password'
+gh secret set APPLE_ID --body 'you@example.com'
+gh secret set APPLE_APP_SPECIFIC_PASSWORD --body 'xxxx-xxxx-xxxx-xxxx'
+gh secret set APPLE_TEAM_ID --body 'XXXXXXXXXX'
+```
+
+The workflow auto-enables Hardened-Runtime signing + `notarytool` notarization when `MAC_CSC_LINK` is present. App Sandbox stays **off** (configured in `desktop/build/entitlements.mac.plist`) so clipboard reads + paste injection + global hotkeys keep working.
+
+**Windows** — OV code-signing cert (~$100/yr from Sectigo, SSL.com, etc.). After procurement:
+
+1. If you got a `.pfx`, you're done. If you got an HSM token (newer Sectigo/SSL.com deliveries mandate this), HSM signing isn't supported by this workflow yet — see issue #6.
+
+```bash
+gh secret set WIN_CSC_LINK < <(base64 path/to/codesign.pfx)
+gh secret set WIN_CSC_KEY_PASSWORD --body 'your-pfx-password'
+```
+
+The signed installer signs SHA-256 by default. SmartScreen reputation takes ~2 weeks to build with an OV cert — during that window, Win users still see the "publisher: Parth Jansari" prompt (not the unsigned-app warning).
 
 For a dry-run that doesn't ship to the public, tag a pre-release: `git tag v0.3.0-rc1 && git push origin v0.3.0-rc1`. The release is created as a draft until all four artifacts succeed, then flipped to non-draft; delete the draft if a job fails.
 
