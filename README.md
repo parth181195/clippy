@@ -2,7 +2,7 @@
 
 A LAN-only, peer-to-peer clipboard manager + small-file sharer for Ubuntu (GNOME / Wayland) and Android. It remembers every clip, searches them all, and syncs to your phone — no cloud, no account.
 
-**Status:** open beta, `v0.3.0` · GPLv3 · Linux + Android stable; Mac + Windows are unsigned beta (Gatekeeper / SmartScreen warning on first launch, signing lands in `v0.3.1`). Downloads on the [Releases page](https://github.com/parth181195/clippy/releases).
+**Status:** open beta, `v0.3.1` · GPLv3 · Linux + Android stable; Mac + Windows are unsigned beta (Gatekeeper / SmartScreen warning on first launch, signing lands in a follow-up). Downloads on the [Releases page](https://github.com/parth181195/clippy/releases).
 
 ## Subsystems
 
