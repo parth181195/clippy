@@ -18,6 +18,21 @@ const CLIPPY_DBUS_NAME = 'io.clippy.App';
 const CLIPPY_DBUS_PATH = '/io/clippy/App';
 const CLIPPY_DBUS_IFACE = 'io.clippy.App';
 
+// The extension exposes its OWN D-Bus service so the desktop can synthesize
+// input from within gnome-shell — the Shell process has direct Wayland input
+// access, so no RemoteDesktop portal prompt fires (which the ydotool /
+// wtype fallbacks would otherwise trigger on every paste).
+const SHELL_DBUS_NAME = 'io.clippy.Shell';
+const SHELL_DBUS_PATH = '/io/clippy/Shell';
+const SHELL_INTROSPECTION_XML = `
+<node>
+  <interface name="io.clippy.Shell">
+    <method name="PasteChord">
+      <arg type="b" direction="in" name="shifted"/>
+    </method>
+  </interface>
+</node>`;
+
 const ClippyIndicator = GObject.registerClass(
 class ClippyIndicator extends PanelMenu.Button {
   _init(extension) {
@@ -153,14 +168,71 @@ class FocusedAppPusher {
   }
 }
 
+// D-Bus service the desktop calls to synthesize Ctrl+V (or Ctrl+Shift+V) from
+// inside gnome-shell. Uses Clutter's virtual input device — Wayland-native,
+// no portal prompt. The desktop writes the target text to the system
+// clipboard first, then invokes PasteChord to deliver the paste keystroke.
+class ClippyShellService {
+  constructor() {
+    this._exported = null;
+    this._nameId = 0;
+    try {
+      this._exported = Gio.DBusExportedObject.wrapJSObject(SHELL_INTROSPECTION_XML, this);
+      this._exported.export(Gio.DBus.session, SHELL_DBUS_PATH);
+      this._nameId = Gio.bus_own_name(
+        Gio.BusType.SESSION,
+        SHELL_DBUS_NAME,
+        Gio.BusNameOwnerFlags.NONE,
+        null,
+        null,
+        null,
+      );
+      log('[clippy-ext] shell-svc exported at io.clippy.Shell');
+    } catch (e) {
+      log(`[clippy-ext] shell-svc setup failed: ${e.message}`);
+    }
+  }
+
+  PasteChord(shifted) {
+    try {
+      const backend = Clutter.get_default_backend();
+      const seat = backend.get_default_seat();
+      const kbd = seat.create_virtual_device(Clutter.InputDeviceType.KEYBOARD_DEVICE);
+      const t = () => Clutter.CURRENT_TIME;
+      kbd.notify_keyval(t(), Clutter.KEY_Control_L, Clutter.KeyState.PRESSED);
+      if (shifted) kbd.notify_keyval(t(), Clutter.KEY_Shift_L, Clutter.KeyState.PRESSED);
+      kbd.notify_keyval(t(), Clutter.KEY_v, Clutter.KeyState.PRESSED);
+      kbd.notify_keyval(t(), Clutter.KEY_v, Clutter.KeyState.RELEASED);
+      if (shifted) kbd.notify_keyval(t(), Clutter.KEY_Shift_L, Clutter.KeyState.RELEASED);
+      kbd.notify_keyval(t(), Clutter.KEY_Control_L, Clutter.KeyState.RELEASED);
+    } catch (e) {
+      log(`[clippy-ext] PasteChord failed: ${e.message}`);
+    }
+  }
+
+  destroy() {
+    if (this._nameId) {
+      Gio.bus_unown_name(this._nameId);
+      this._nameId = 0;
+    }
+    if (this._exported) {
+      try { this._exported.unexport(); } catch (_) {}
+      this._exported = null;
+    }
+  }
+}
+
 export default class ClippyExtension extends Extension {
   enable() {
     this._indicator = new ClippyIndicator(this);
     Main.panel.addToStatusArea(this.uuid, this._indicator);
     this._focusPusher = new FocusedAppPusher();
+    this._shellSvc = new ClippyShellService();
   }
 
   disable() {
+    this._shellSvc?.destroy();
+    this._shellSvc = null;
     this._focusPusher?.destroy();
     this._focusPusher = null;
     this._indicator?.destroy();

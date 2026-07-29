@@ -4,5 +4,5 @@
   "description": "Top-bar trigger for the Clippy clipboard manager. Click to toggle the Clippy panel.",
   "shell-version": ["47", "48", "49", "50"],
   "url": "https://github.com/anthropic/clippy",
-  "version-name": "0.1.0"
+  "version-name": "0.2.0"
 }
