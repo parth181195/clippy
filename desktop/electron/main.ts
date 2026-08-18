@@ -183,6 +183,40 @@ function createTray() {
   tray.on('click', () => toggleWindow());
 }
 
+// Known terminal emulator app IDs / window names — we auto-force Ctrl+Shift+V
+// when any of these has focus at paste time. Users pressing plain Enter on a
+// history row shouldn't have to remember Shift+Enter for terminals.
+const TERMINAL_APPS = new Set([
+  'org.gnome.terminal',
+  'gnome-terminal-server',
+  'gnome-terminal',
+  'org.gnome.console',
+  'kgx', // GNOME Console binary name
+  'kitty',
+  'alacritty',
+  'wezterm',
+  'org.wezfurlong.wezterm',
+  'terminator',
+  'tilix',
+  'com.gexperts.tilix',
+  'konsole',
+  'org.kde.konsole',
+  'xterm',
+  'urxvt',
+  'foot',
+  'org.contourterminal.contour',
+  'com.mitchellh.ghostty',
+  'ghostty',
+]);
+
+function shouldForceShiftedPaste(): boolean {
+  const app = (platform.getFocusedApp() ?? '').toLowerCase();
+  if (!app) return false;
+  if (TERMINAL_APPS.has(app)) return true;
+  // Substring safety net for window-title fallbacks (e.g. "user@host: ~" from xdotool).
+  return app.includes('terminal') || app.includes('console');
+}
+
 // Paste several text-shaped clips at once, joined by newlines, in the given
 // order. Non-text clips (image/file) are skipped. Used by multi-select.
 async function pasteManyById(ids: number[], shiftForTerminal: boolean): Promise<void> {
@@ -197,7 +231,8 @@ async function pasteManyById(ids: number[], shiftForTerminal: boolean): Promise<
   if (parts.length === 0) return;
   mainWindow?.hide();
   await new Promise((r) => setTimeout(r, 50));
-  await platform.paste(Buffer.from(parts.join('\n'), 'utf8'), 'text/plain', shiftForTerminal);
+  const shift = shiftForTerminal || shouldForceShiftedPaste();
+  await platform.paste(Buffer.from(parts.join('\n'), 'utf8'), 'text/plain', shift);
 }
 
 async function pasteById(id: number, shiftForTerminal: boolean): Promise<void> {
@@ -210,7 +245,8 @@ async function pasteById(id: number, shiftForTerminal: boolean): Promise<void> {
   // Hide window so the synthesised Ctrl+V lands in the previously-focused app.
   mainWindow?.hide();
   await new Promise((r) => setTimeout(r, 50));
-  await platform.paste(row.content, row.mime, shiftForTerminal);
+  const shift = shiftForTerminal || shouldForceShiftedPaste();
+  await platform.paste(row.content, row.mime, shift);
 }
 
 // Launch the system screen color picker, store the result as a color clip,
