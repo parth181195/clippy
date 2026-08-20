@@ -11,8 +11,31 @@ export function EditPane({
   onSave: (newId: number, pasteAfter: boolean) => void;
   onCancel: () => void;
 }) {
+  // Seed with `preview` for an instant first paint (avoids empty flash), then
+  // swap to the full DB content once we've fetched it. Saving is disabled
+  // until the full body is loaded so we never silently persist a truncated
+  // edit back to disk.
   const [value, setValue] = useState(clip.preview);
+  const [loaded, setLoaded] = useState(false);
   const editable = ['text', 'link', 'code', 'color', 'emoji'].includes(clip.contentType);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const bytes = await window.clippy.getClipContent(clip.id);
+        if (cancelled) return;
+        // Text-shaped clips are always UTF-8 in the DB.
+        const full = new TextDecoder('utf-8').decode(bytes);
+        setValue(full);
+      } catch {
+        // Fall back to preview; save stays gated on `loaded`.
+      } finally {
+        if (!cancelled) setLoaded(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [clip.id]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -31,6 +54,8 @@ export function EditPane({
 
   async function save(paste: boolean) {
     if (!editable) return;
+    // Guard against saving the still-loading preview back over the DB.
+    if (!loaded) return;
     const newId = await window.clippy.saveEditedClip(clip.id, value);
     onSave(newId, paste);
   }
@@ -64,8 +89,10 @@ export function EditPane({
       />
       <div className="actions">
         <button type="button" className="cancel" onClick={onCancel}>Cancel</button>
-        <button type="button" className="save" onClick={() => save(false)}>Save</button>
-        <button type="button" className="save-paste" onClick={() => save(true)}>
+        <button type="button" className="save" onClick={() => save(false)} disabled={!loaded}>
+          {loaded ? 'Save' : 'Loading…'}
+        </button>
+        <button type="button" className="save-paste" onClick={() => save(true)} disabled={!loaded}>
           Save & Paste · Ctrl+<CornerDownLeft size={11} strokeWidth={2.2} style={{ verticalAlign: '-2px' }} />
         </button>
       </div>
